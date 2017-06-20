@@ -17,7 +17,7 @@ group= "com.flansmod.apocalypse"
 archivesBaseName = "Flan's Mod: Apocalypse"
 
 minecraft {
-    version = "1.8-11.14.4.1577"
+    version = "1.8.9-11.15.1.1902"
     runDir = "run"
 
     replace "@ALLOWED_VERSION@", "[0.1.0, 0.2.0)"
