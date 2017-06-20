@@ -262,7 +262,7 @@ public class EntityBullet extends EntityShootable implements IEntityAdditionalSp
 		{
 			DriveableHit driveableHit = (DriveableHit)bulletHit;
 			penetratingPower = driveableHit.driveable.bulletHit(bulletType, damage, driveableHit, penetratingPower);
-			if(FlansMod.DEBUG)
+			if(FlansMod.DEBUG && world.isRemote)
 				world.spawnEntityInWorld(new EntityDebugDot(world, hit, 1000, 0F, 0F, 1F));
 
 		}
@@ -270,7 +270,7 @@ public class EntityBullet extends EntityShootable implements IEntityAdditionalSp
 		{
 			PlayerBulletHit playerHit = (PlayerBulletHit)bulletHit;
 			penetratingPower = playerHit.hitbox.hitByBullet(source, shooter, shotFrom, bulletType, damage, penetratingPower);
-			if(FlansMod.DEBUG)
+			if(FlansMod.DEBUG && world.isRemote)
 				world.spawnEntityInWorld(new EntityDebugDot(world, hit, 1000, 1F, 0F, 0F));
 		}
 		else if(bulletHit instanceof EntityHit)
@@ -292,7 +292,7 @@ public class EntityBullet extends EntityShootable implements IEntityAdditionalSp
 				if(bulletType.setEntitiesOnFire)
 					entityHit.entity.setFire(20);
 				penetratingPower -= 1F;
-				if(FlansMod.DEBUG)
+				if(FlansMod.DEBUG && world.isRemote)
 					world.spawnEntityInWorld(new EntityDebugDot(world, hit, 1000, 1F, 1F, 0F));
 			}
 		}
@@ -302,7 +302,7 @@ public class EntityBullet extends EntityShootable implements IEntityAdditionalSp
 			MovingObjectPosition raytraceResult = blockHit.raytraceResult;
 			//If the hit wasn't an entity hit, then it must've been a block hit
 			BlockPos pos = raytraceResult.getBlockPos();
-			if(FlansMod.DEBUG)
+			if(FlansMod.DEBUG && world.isRemote)
 				world.spawnEntityInWorld(new EntityDebugDot(world, hit, 1000, 0F, 1F, 0F));
 
 			Block block = world.getBlockState(pos).getBlock();
@@ -342,7 +342,7 @@ public class EntityBullet extends EntityShootable implements IEntityAdditionalSp
 	public void onUpdate() {
 		super.onUpdate();
 
-		if (worldObj.isRemote)
+		if(FlansMod.DEBUG && worldObj.isRemote)
 			worldObj.spawnEntityInWorld(new EntityDebugVector(worldObj, new Vector3f(posX, posY, posZ),
 					new Vector3f(motionX, motionY, motionZ), 20));
 
@@ -597,6 +597,8 @@ public class EntityBullet extends EntityShootable implements IEntityAdditionalSp
 
 	@Override
 	public void readEntityFromNBT(NBTTagCompound tag) {
+		
+		
 		String typeString = tag.getString("type");
 		String ownerName = tag.getString("owner");
 
