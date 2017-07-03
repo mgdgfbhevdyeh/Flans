@@ -90,6 +90,11 @@ public class ModelGun extends ModelBase
 		render(gunModel, f);
 	}
 	
+	public void renderCustom(float f, GunAnimations anims)
+	{
+		
+	}
+	
 	public void renderSlide(float f)
 	{
 		render(slideModel, f);
@@ -142,7 +147,7 @@ public class ModelGun extends ModelBase
 
 
 	/** For renderering models simply */
-	private void render(ModelRendererTurbo[] models, float f)
+	protected void render(ModelRendererTurbo[] models, float f)
 	{
 		for(ModelRendererTurbo model : models)
 			if(model != null)
@@ -188,6 +193,10 @@ public class ModelGun extends ModelBase
 		translate(minigunBarrelModel, x, y, z);
 		translate(revolverBarrelModel, x, y, z);
 		translate(breakActionModel, x, y, z);
+		translateAttachment(barrelAttachPoint, x, y, z);
+               translateAttachment(scopeAttachPoint, x, y, z);
+               translateAttachment(gripAttachPoint, x, y, z);
+               translateAttachment(stockAttachPoint, x, y, z);
 	}
 	
 	protected void translate(ModelRendererTurbo[] model, float x, float y, float z)
@@ -199,6 +208,13 @@ public class ModelGun extends ModelBase
 			mod.rotationPointZ += z;
 		}
 	}
+	
+	protected void translateAttachment(Vector3f vector, float x , float y, float z)
+       {
+           vector.x -= x / 16F;
+           vector.y -= y / 16F;
+           vector.z -= z / 16F;
+       }
 
 
 }

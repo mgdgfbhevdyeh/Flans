@@ -7,16 +7,26 @@ import net.minecraft.client.gui.GuiChat;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.fml.client.FMLClientHandler;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.InputEvent.KeyInputEvent;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+
 import com.flansmod.api.IControllable;
-import com.flansmod.client.gui.GuiTeamScores;
-import com.flansmod.client.gui.GuiTeamSelect;
+import com.flansmod.client.gui.teams.GuiLandingPage;
+import com.flansmod.client.gui.teams.GuiTeamScores;
+import com.flansmod.client.gui.teams.GuiTeamSelect;
+import com.flansmod.client.model.GunAnimations;
+import com.flansmod.client.model.GunAnimations.LookAtState;
 import com.flansmod.common.FlansMod;
+import com.flansmod.common.PlayerData;
+import com.flansmod.common.PlayerHandler;
+import com.flansmod.common.guns.GunType;
+import com.flansmod.common.guns.ItemGun;
 import com.flansmod.common.network.PacketReload;
 import com.flansmod.common.network.PacketRequestDebug;
 
@@ -42,6 +52,7 @@ public class KeyInputHandler
 	public static KeyBinding gearKey = new KeyBinding("Gear Up / Down Key", Keyboard.KEY_L, "Flan's Mod");
 	public static KeyBinding doorKey = new KeyBinding("Door Open / Close Key", Keyboard.KEY_K, "Flan's Mod");
 	public static KeyBinding modeKey = new KeyBinding("Mode Switch Key", Keyboard.KEY_J, "Flan's Mod");
+	public static KeyBinding lookAtGunKey = new KeyBinding("Look at Gun", Keyboard.KEY_L, "Flan's Mod");
 	//public static KeyBinding trimKey = new KeyBinding("Trim Key", Keyboard.KEY_O, "Flan's Mod");
 	public static KeyBinding debugKey = new KeyBinding("Debug Key", Keyboard.KEY_F10, "Flan's Mod");
 	public static KeyBinding reloadModelsKey = new KeyBinding("Reload Models Key", Keyboard.KEY_F9, "Flan's Mod");
@@ -70,6 +81,7 @@ public class KeyInputHandler
 		ClientRegistry.registerKeyBinding(gearKey);
 		ClientRegistry.registerKeyBinding(doorKey);
 		ClientRegistry.registerKeyBinding(modeKey);
+		ClientRegistry.registerKeyBinding(lookAtGunKey);
 		//ClientRegistry.registerKeyBinding(trimKey);
 		ClientRegistry.registerKeyBinding(debugKey);
 		ClientRegistry.registerKeyBinding(reloadModelsKey);
@@ -77,9 +89,8 @@ public class KeyInputHandler
 		
 		mc = Minecraft.getMinecraft();
 	}
-	
-	@SubscribeEvent
-	public void onKeyInput(KeyInputEvent event)
+
+	public void CheckKeyInput(KeyInputEvent event)
 	{
 		if(FMLClientHandler.instance().isGUIOpen(GuiChat.class) || mc.currentScreen != null)
 			return;
@@ -90,7 +101,7 @@ public class KeyInputHandler
 		//Handle universal keys
 		if(teamsMenuKey.isPressed())
 		{
-			mc.displayGuiScreen(new GuiTeamSelect());
+			mc.displayGuiScreen(new GuiLandingPage());
 			return;
 		}
 		if(teamsScoresKey.isPressed())
@@ -98,10 +109,42 @@ public class KeyInputHandler
 			mc.displayGuiScreen(new GuiTeamScores());
 			return;
 		}
-		if(reloadKey.isPressed() && FlansModClient.shootTime(false) <= 0)
+		if(reloadKey.isPressed())
 		{
-			FlansMod.getPacketHandler().sendToServer(new PacketReload(false));
-			return;
+			PlayerData data = PlayerHandler.getPlayerData(player, Side.CLIENT);
+			ItemStack stack = player.getCurrentEquippedItem();
+			
+			if(data.shootTimeRight <= 0.0f)
+			{
+				if(stack != null && stack.getItem() instanceof ItemGun)
+				{
+					ItemGun item = (ItemGun)stack.getItem();
+					GunType type = item.GetType();
+					
+					if(item.CanReload(stack, player.inventory))
+					{
+						FlansMod.getPacketHandler().sendToServer(new PacketReload(false, true));
+	
+						//Set player shoot delay to be the reload delay
+						//Set both gun delays to avoid reloading two guns at once
+						data.shootTimeRight = data.shootTimeLeft = (int)type.getReloadTime(stack);
+						
+						GunAnimations animations = FlansModClient.getGunAnimations(player, false);
+		
+						int pumpDelay = type.model == null ? 0 : type.model.pumpDelayAfterReload;
+						int pumpTime = type.model == null ? 1 : type.model.pumpTime;
+						animations.doReload(type.reloadTime, pumpDelay, pumpTime);
+						
+						data.reloadingRight = true;
+						data.burstRoundsRemainingRight = 0;
+					}
+				}
+			}
+		}
+		if(lookAtGunKey.isPressed())
+		{
+			FlansModClient.getGunAnimations(mc.thePlayer, false).lookAt = LookAtState.TILT1;
+			FlansModClient.getGunAnimations(mc.thePlayer, true).lookAt = LookAtState.TILT1;
 		}
 		if(debugKey.isPressed())
 		{

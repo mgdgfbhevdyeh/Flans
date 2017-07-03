@@ -74,13 +74,35 @@ public class ModelGL6 extends ModelGun
 		
 		ammoModel = new ModelRendererTurbo[6];
 		
-		for(int i = 0; i < 6; i++)
-		{
-			ammoModel[i] = new ModelRendererTurbo(this, 42, 12, textureX, textureY);
-			ammoModel[i].addBox(0.9F, -2.75F, -0.75F, 4, 1.5F, 1.5F);
-			ammoModel[i].setRotationPoint(0F, 1F, 0F);
-			ammoModel[i].rotateAngleX = (float)Math.PI / 3F * i;
-		}
+		ammoModel[0] = new ModelRendererTurbo(this, 42, 12, textureX, textureY);
+		ammoModel[0].addBox(0.9F, -2.75F, -0.75F, 4, 1.5F, 1.5F);
+		ammoModel[0].setRotationPoint(0F, 1F, 0F);
+		ammoModel[0].rotateAngleX = 1.054f;
+		
+		ammoModel[1] = new ModelRendererTurbo(this, 42, 12, textureX, textureY);
+		ammoModel[1].addBox(0.9F, -2.75F, -0.75F, 4, 1.5F, 1.5F);
+		ammoModel[1].setRotationPoint(0F, 1F, 0F);
+		ammoModel[1].rotateAngleX = 2.09f;
+		
+		ammoModel[2] = new ModelRendererTurbo(this, 42, 12, textureX, textureY);
+		ammoModel[2].addBox(0.9F, -2.75F, -0.75F, 4, 1.5F, 1.5F);
+		ammoModel[2].setRotationPoint(0F, 1F, 0F);
+		ammoModel[2].rotateAngleX = 3.14f;
+		
+		ammoModel[3] = new ModelRendererTurbo(this, 42, 12, textureX, textureY);
+		ammoModel[3].addBox(0.9F, -2.75F, -0.75F, 4, 1.5F, 1.5F);
+		ammoModel[3].setRotationPoint(0F, 1F, 0F);
+		ammoModel[3].rotateAngleX = 4.188f;
+		
+		ammoModel[4] = new ModelRendererTurbo(this, 42, 12, textureX, textureY);
+		ammoModel[4].addBox(0.9F, -2.75F, -0.75F, 4, 1.5F, 1.5F);
+		ammoModel[4].setRotationPoint(0F, 1F, 0F);
+		ammoModel[4].rotateAngleX = 5.235f;
+		
+		ammoModel[5] = new ModelRendererTurbo(this, 42, 12, textureX, textureY);
+		ammoModel[5].addBox(0.9F, -2.75F, -0.75F, 4, 1.5F, 1.5F);
+		ammoModel[5].setRotationPoint(0F, 1F, 0F);
+		ammoModel[5].rotateAngleX = 6.28f;
 
 		barrelAttachPoint = new Vector3f(7.5F / 16F, 4F / 16F, 0F);
 		

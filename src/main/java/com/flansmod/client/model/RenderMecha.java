@@ -21,15 +21,14 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.client.IItemRenderer;
-import net.minecraftforge.client.IItemRenderer.ItemRenderType;
-import net.minecraftforge.client.IItemRenderer.ItemRendererHelper;
 
 import com.flansmod.client.ClientProxy;
 import com.flansmod.client.FlansModResourceHandler;
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.driveables.DriveablePart;
 import com.flansmod.common.driveables.DriveablePosition;
+import com.flansmod.common.driveables.DriveableType;
+import com.flansmod.common.driveables.EntityDriveable;
 import com.flansmod.common.driveables.EnumDriveablePart;
 import com.flansmod.common.driveables.mechas.EntityMecha;
 import com.flansmod.common.driveables.mechas.EnumMechaSlotType;
@@ -39,8 +38,9 @@ import com.flansmod.common.driveables.mechas.MechaItemType;
 import com.flansmod.common.driveables.mechas.MechaType;
 import com.flansmod.common.guns.GunType;
 import com.flansmod.common.guns.ItemGun;
+import com.flansmod.common.guns.Paintjob;
 
-public class RenderMecha extends Render implements IItemRenderer
+public class RenderMecha extends Render
 {
     private static final ResourceLocation RES_ITEM_GLINT = new ResourceLocation("textures/misc/enchanted_item_glint.png");
     private static final ItemRenderer renderer = new ItemRenderer(Minecraft.getMinecraft());
@@ -360,7 +360,9 @@ public class RenderMecha extends Render implements IItemRenderer
 	@Override
 	protected ResourceLocation getEntityTexture(Entity entity) 
 	{
-		return FlansModResourceHandler.getTexture(((EntityMecha)entity).getMechaType());
+		DriveableType type = ((EntityDriveable)entity).getDriveableType();
+		Paintjob paintjob = type.getPaintjob(((EntityDriveable)entity).getDriveableData().paintjobID);
+		return FlansModResourceHandler.getPaintjobTexture(paintjob);
 	}
 
 	
@@ -392,9 +394,9 @@ public class RenderMecha extends Render implements IItemRenderer
 				toolType.model.renderSaw(mecha, dT, (leftHand && mecha.leftMouseHeld) || (!leftHand && mecha.rightMouseHeld));
 			}
 		}
-		else if(item instanceof ItemGun && ((ItemGun)item).type.model != null)
+		else if(item instanceof ItemGun && ((ItemGun)item).GetType().model != null)
 		{
-			GunType gunType = ((ItemGun)item).type;
+			GunType gunType = ((ItemGun)item).GetType();
 			ModelGun model = gunType.model;
 			
 			GL11.glRotatef(-90F, 0F, 0F, 1F);
@@ -410,76 +412,6 @@ public class RenderMecha extends Render implements IItemRenderer
             renderItem.renderItem(stack, ibakedmodel);
 	
 			GL11.glDisable(GL12.GL_RESCALE_NORMAL);
-		}
-		GL11.glPopMatrix();
-	}
-
-	@Override
-	public boolean handleRenderType(ItemStack item, ItemRenderType type) 
-	{
-		switch(type)
-		{
-		case EQUIPPED : case EQUIPPED_FIRST_PERSON : case ENTITY : return Minecraft.getMinecraft().gameSettings.fancyGraphics && item != null && item.getItem() instanceof ItemMecha && ((ItemMecha)item.getItem()).type.model != null;
-		default : break;
-		}
-		return false;
-	}
-
-	@Override
-	public boolean shouldUseRenderHelper(ItemRenderType type, ItemStack item, ItemRendererHelper helper) 
-	{
-		return false;
-	}
-
-	@Override
-	public void renderItem(ItemRenderType type, ItemStack item, Object... data) 
-	{
-		GL11.glPushMatrix();
-		if(item != null && item.getItem() instanceof ItemMecha)
-		{
-			MechaType mechaType = ((ItemMecha)item.getItem()).type;
-			if(mechaType.model != null)
-			{
-				float scale = 2F;
-				switch(type)
-				{
-				case INVENTORY:
-				{
-					scale = 1.0F;
-					GL11.glTranslatef(0F, -0.35F, 0F);
-					break;
-				}
-				case ENTITY:
-				{
-					scale = 1.5F;
-					//GL11.glRotatef(((EntityItem)data[1]).ticksExisted, 0F, 1F, 0F);
-					break;
-				}
-				case EQUIPPED:
-				{
-					GL11.glRotatef(0F, 0F, 0F, 1F);
-					GL11.glRotatef(270F, 1F, 0F, 0F);
-					GL11.glRotatef(270F, 0F, 1F, 0F);
-					GL11.glTranslatef(0F, 0.25F, 0F);
-					scale = 0.5F;
-					break;
-				}
-				case EQUIPPED_FIRST_PERSON:
-				{
-					//GL11.glRotatef(25F, 0F, 0F, 1F); 
-					GL11.glRotatef(45F, 0F, 1F, 0F);
-					GL11.glTranslatef(-0.5F, 0.5F, -0.5F);
-					scale = 1F;
-					break;
-				}
-				default : break;
-				}
-				
-				GL11.glScalef(scale / mechaType.cameraDistance, scale / mechaType.cameraDistance, scale / mechaType.cameraDistance);
-				Minecraft.getMinecraft().renderEngine.bindTexture(FlansModResourceHandler.getTexture(mechaType));
-				ModelDriveable model = mechaType.model;
-				model.render(mechaType);
-			}
 		}
 		GL11.glPopMatrix();
 	}

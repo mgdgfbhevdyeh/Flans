@@ -4,7 +4,11 @@ import com.flansmod.common.FlansMod;
 import com.flansmod.common.types.InfoType;
 import com.flansmod.common.types.TypeFile;
 
-public class BoxType extends InfoType 
+import net.minecraft.client.model.ModelBase;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
+
+public abstract class BoxType extends InfoType 
 {
 	public String topTexturePath;
 	public String sideTexturePath;
@@ -21,16 +25,31 @@ public class BoxType extends InfoType
 		super.read(split, file);
 		try
 		{		
-			if (split[0].equals("TopTexture"))
-				topTexturePath = split[1];
-			if (split[0].equals("BottomTexture"))
-				bottomTexturePath = split[1];
-			if (split[0].equals("SideTexture"))
-				sideTexturePath = split[1];
-		} catch (Exception e)
+			topTexturePath = Read(split, "TopTexture", topTexturePath);
+			bottomTexturePath = Read(split, "BottomTexture", bottomTexturePath);
+			sideTexturePath = Read(split, "SideTexture", sideTexturePath);
+		} 
+		catch (Exception e)
 		{
 			FlansMod.log("Reading box file failed : " + shortName);
 			e.printStackTrace();
 		}
+	}
+
+	@Override
+	protected void preRead(TypeFile file)
+	{
+	}
+
+	@Override
+	protected void postRead(TypeFile file)
+	{
+	}
+
+	@Override
+	@SideOnly(Side.CLIENT)
+	public ModelBase GetModel()
+	{
+		return null;
 	}
 }

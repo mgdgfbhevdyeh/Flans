@@ -70,7 +70,7 @@ public class EntityFlagpole extends Entity implements ITeamBase
 	}
 
 	@Override
-	public AxisAlignedBB getBoundingBox()
+	public AxisAlignedBB getEntityBoundingBox()
 	{
 		return null;
 		//return AxisAlignedBB.getBoundingBox(posX - 0.5D, posY, posZ - 0.5D, posX + 0.5D, posY + 3D, posZ + 0.5D);
@@ -170,13 +170,13 @@ public class EntityFlagpole extends Entity implements ITeamBase
 	}
 
 	@Override
-	public String getName() 
+	public String getBaseName() 
 	{
 		return name;
 	}
 
 	@Override
-	public void setName(String newName) 
+	public void setBaseName(String newName) 
 	{
 		name = newName;
 	}

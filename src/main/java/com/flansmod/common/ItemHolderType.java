@@ -2,6 +2,7 @@ package com.flansmod.common;
 
 import java.util.HashMap;
 
+import net.minecraft.client.model.ModelBase;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -26,11 +27,15 @@ public class ItemHolderType extends InfoType
 	{
 		super(file);
 	}
+	
+	@Override
+	protected void preRead(TypeFile file)
+	{
+	}
 
 	@Override
 	public void postRead(TypeFile file)
 	{
-		super.postRead(file);
 		itemHolders.put(this.shortName, this);
 	}
 	
@@ -42,9 +47,6 @@ public class ItemHolderType extends InfoType
 		{		
 			if(FMLCommonHandler.instance().getSide().isClient() && split[0].equals("Model"))
 				model = FlansMod.proxy.loadModel(split[1], shortName, ModelItemHolder.class);
-			
-			else if(split[0].equals("Texture"))
-				texture = split[1];
 		}
 		catch (Exception e)
 		{
@@ -63,5 +65,12 @@ public class ItemHolderType extends InfoType
 	public void reloadModel()
 	{
 		model = FlansMod.proxy.loadModel(modelString, shortName, ModelItemHolder.class);
+	}
+
+	@Override
+	@SideOnly(Side.CLIENT)
+	public ModelBase GetModel()
+	{
+		return model;
 	}
 }

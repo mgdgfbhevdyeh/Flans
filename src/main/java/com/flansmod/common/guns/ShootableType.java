@@ -12,7 +12,7 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-public class ShootableType extends InfoType 
+public abstract class ShootableType extends InfoType 
 {
 	//Aesthetics
 	/** The model to render for this grenade in the world */
@@ -45,7 +45,7 @@ public class ShootableType extends InfoType
 	
 	//Damage to hit entities
 	/** Amount of damage to impart upon various entities */
-	public int damageVsLiving = 1, damageVsDriveable = 1;
+	public float damageVsLiving = 1, damageVsDriveable = 1;
 	/** Whether this grenade will break glass when thrown against it */
 	public boolean breaksGlass = false;
 	
@@ -70,7 +70,7 @@ public class ShootableType extends InfoType
 	public String detonateSound = "";
 	
 	/** The static list of all shootable types */
-	public static HashMap<String, ShootableType> shootables = new HashMap<String, ShootableType>();
+	public static HashMap<Integer, ShootableType> shootables = new HashMap<Integer, ShootableType>();
 	
 	public ShootableType(TypeFile file) 
 	{
@@ -80,7 +80,7 @@ public class ShootableType extends InfoType
 	@Override
 	public void postRead(TypeFile file)
 	{
-		shootables.put(shortName, this);
+		shootables.put(shortName.hashCode(), this);
 	}
 	
 	@Override
@@ -92,8 +92,6 @@ public class ShootableType extends InfoType
 			//Model and Texture
 			if(FMLCommonHandler.instance().getSide().isClient() && split[0].equals("Model"))
 				model = FlansMod.proxy.loadModel(split[1], shortName, ModelBase.class);
-			else if(split[0].equals("Texture"))
-				texture = split[1];
 			
 			//Item Stuff
 			else if(split[0].equals("StackSize") || split[0].equals("MaxStackSize"))
@@ -121,9 +119,13 @@ public class ShootableType extends InfoType
 			
 			//Hit stuff
 			else if(split[0].equals("HitEntityDamage") || split[0].equals("DamageVsLiving") || split[0].equals("DamageVsPlayer"))
-				damageVsLiving = Integer.parseInt(split[1]);
+				damageVsLiving = Float.parseFloat(split[1]);
 			else if(split[0].equals("DamageVsVehicles"))
-				damageVsDriveable = Integer.parseInt(split[1]);
+				damageVsDriveable = Float.parseFloat(split[1]);
+			else if(split[0].equals("Damage"))
+			{
+				damageVsLiving = damageVsDriveable = Float.parseFloat(split[1]);
+			}
 			else if(split[0].equals("BreaksGlass"))
 				breaksGlass = Boolean.parseBoolean(split[1].toLowerCase());
 			
@@ -155,13 +157,30 @@ public class ShootableType extends InfoType
 		} 
 		catch (Exception e)
 		{
-			System.out.println("Reading grenade file failed.");
+			FlansMod.log("Reading grenade file failed: " + shortName);
 			e.printStackTrace();
 		}
 	}
 
 	public static ShootableType getShootableType(String string) 
 	{
-		return shootables.get(string);
+		return shootables.get(string.hashCode());
+	}
+	
+	public static ShootableType getShootableType(int hash) 
+	{
+		return shootables.get(hash);
+	}
+
+	@Override
+	protected void preRead(TypeFile file)
+	{
+	}
+
+	@Override
+	@SideOnly(Side.CLIENT)
+	public ModelBase GetModel()
+	{
+		return model;
 	}
 }

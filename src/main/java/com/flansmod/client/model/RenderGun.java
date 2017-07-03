@@ -1,63 +1,81 @@
 package com.flansmod.client.model;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 import org.lwjgl.opengl.GL11;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.RenderHelper;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.renderer.texture.TextureManager;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.MathHelper;
-import net.minecraftforge.client.IItemRenderer;
+import net.minecraft.util.ResourceLocation;
 
 import com.flansmod.client.FlansModClient;
 import com.flansmod.client.FlansModResourceHandler;
+import com.flansmod.common.FlansMod;
 import com.flansmod.common.PlayerData;
 import com.flansmod.common.PlayerHandler;
 import com.flansmod.common.guns.AttachmentType;
+import com.flansmod.common.guns.BulletType;
 import com.flansmod.common.guns.EnumFireMode;
 import com.flansmod.common.guns.GunType;
 import com.flansmod.common.guns.IScope;
 import com.flansmod.common.guns.ItemBullet;
 import com.flansmod.common.guns.ItemGun;
+import com.flansmod.common.guns.Paintjob;
+import com.flansmod.common.types.PaintableType;
 import com.flansmod.common.vector.Vector3f;
 
 import net.minecraftforge.fml.relauncher.Side;
 
-public class RenderGun implements IItemRenderer
+public class RenderGun
 {
 	private static TextureManager renderEngine;
 	
 	public static float smoothing;
+	public static boolean bindTextures = true;
 	
-	@Override
-	public boolean handleRenderType(ItemStack item, ItemRenderType type) 
+	public enum GunRenderType
+	{
+		ENTITY,
+		EQUIPPED_FIRST_PERSON,
+		EQUIPPED,
+		INVENTORY,
+	}
+	
+	// TODO : 1.8 MESS
+	public boolean handleRenderType(ItemStack item, GunRenderType type) 
 	{
 		switch(type)
 		{
 		case ENTITY : if(!Minecraft.getMinecraft().gameSettings.fancyGraphics) return false;
-		case EQUIPPED : case EQUIPPED_FIRST_PERSON :  /*case INVENTORY : */return item != null && item.getItem() instanceof ItemGun && ((ItemGun)item.getItem()).type.model != null;
+		case EQUIPPED : case EQUIPPED_FIRST_PERSON :  /*case INVENTORY : */return item != null 
+				&& item.getItem() instanceof ItemGun 
+				&& ((ItemGun)item.getItem()).GetType().model != null;
 		default : break;
 		}
 		return false;
 	}
 
-	@Override
-	public boolean shouldUseRenderHelper(ItemRenderType type, ItemStack item, ItemRendererHelper helper) 
-	{
-		return false;
-	}
-
-	@Override
-	public void renderItem(ItemRenderType type, ItemStack item, Object... data) 
+	public void renderItem(GunRenderType type, ItemStack item, Object... data) 
 	{
 		//Avoid any broken cases by returning
 		if(!(item.getItem() instanceof ItemGun))
 			return;	
 		
-		GunType gunType = ((ItemGun)item.getItem()).type;
+		GunType gunType = ((ItemGun)item.getItem()).GetType();
 		if(gunType == null)
 			return;
 		
@@ -67,12 +85,12 @@ public class RenderGun implements IItemRenderer
 
 		//Render main hand gun
 		{
-			GunAnimations animations = (type == ItemRenderType.ENTITY || type == ItemRenderType.INVENTORY) ? new GunAnimations() : FlansModClient.getGunAnimations((EntityLivingBase)data[1], false);
+			GunAnimations animations = (type == GunRenderType.ENTITY || type == GunRenderType.INVENTORY) ? new GunAnimations() : FlansModClient.getGunAnimations((EntityLivingBase)data[1], false);
 			renderGun(type, item, gunType, animations, false, data);
 		}
 		
 		//Render off-hand gun
-		if(gunType.oneHanded && type == ItemRenderType.EQUIPPED_FIRST_PERSON)
+		if(gunType.oneHanded && type == GunRenderType.EQUIPPED_FIRST_PERSON)
 		{
 			EntityLivingBase entity = (EntityLivingBase)data[1];
 			if(entity instanceof EntityPlayer)
@@ -90,7 +108,7 @@ public class RenderGun implements IItemRenderer
 					ItemStack offHandItem = player.inventory.getStackInSlot(playerData.offHandGunSlot - 1);
 					if(offHandItem == null || !(offHandItem.getItem() instanceof ItemGun))
 						return;
-					GunType offHandGunType = ((ItemGun)offHandItem.getItem()).type;
+					GunType offHandGunType = ((ItemGun)offHandItem.getItem()).GetType();
 					if(!offHandGunType.oneHanded)
 						return;
 					
@@ -110,14 +128,14 @@ public class RenderGun implements IItemRenderer
 			animations = new GunAnimations();
 			FlansModClient.gunAnimationsLeft.put(player, animations);
 		}
-		GunType offHandGunType = ((ItemGun)offHandItemStack.getItem()).type;
+		GunType offHandGunType = ((ItemGun)offHandItemStack.getItem()).GetType();
 		if(!offHandGunType.oneHanded)
 			return;
 		
-		renderGun(ItemRenderType.INVENTORY, offHandItemStack, offHandGunType, animations, true, player);
+		renderGun(GunRenderType.INVENTORY, offHandItemStack, offHandGunType, animations, true, player);
 	}
 		
-	private void renderGun(ItemRenderType type, ItemStack item, GunType gunType, GunAnimations animations, boolean offHand, Object... data)
+	private void renderGun(GunRenderType type, ItemStack item, GunType gunType, GunAnimations animations, boolean offHand, Object... data)
 	{
 		//The model scale
 		float f = 1F / 16F;
@@ -209,8 +227,71 @@ public class RenderGun implements IItemRenderer
 						GL11.glRotatef(meleeAngles.y + (nextMeleeAngles.y - meleeAngles.y) * smoothing, 0F, 1F, 0F);
 						GL11.glRotatef(meleeAngles.z + (nextMeleeAngles.z - meleeAngles.z) * smoothing, 0F, 0F, 1F);
 						GL11.glRotatef(meleeAngles.x + (nextMeleeAngles.x - meleeAngles.x) * smoothing, 1F, 0F, 0F);
-
 					}
+					
+					// Look at gun stuff
+					float interp = animations.lookAtTimer + smoothing;
+					interp /= animations.lookAtTimes[animations.lookAt.ordinal()];
+					
+					final Vector3f idlePos = new Vector3f(0.0f, 0.0f, 0.0f);			
+					final Vector3f look1Pos = new Vector3f(0.25f, 0.25f, 0.0f);
+					final Vector3f look2Pos = new Vector3f(0.25f, 0.25f, -0.5f);
+					final Vector3f idleAngles = new Vector3f(0.0f, 0.0f, 0.0f);
+					final Vector3f look1Angles = new Vector3f(0.0f, 70.0f, 0.0f);
+					final Vector3f look2Angles = new Vector3f(0.0f, -60.0f, 60.0f);
+					Vector3f startPos, endPos, startAngles, endAngles;
+					
+					switch(animations.lookAt)
+					{
+						default:
+						case NONE:
+							startPos = endPos = idlePos;
+							startAngles = endAngles = idleAngles;
+							break;
+						case LOOK1:
+							startPos = endPos = look1Pos;
+							startAngles = endAngles = look1Angles;
+							break;
+						case LOOK2:
+							startPos = endPos = look2Pos;
+							startAngles = endAngles = look2Angles;
+							break;
+						case TILT1:
+							startPos = idlePos;
+							startAngles = idleAngles;
+							endPos = look1Pos;
+							endAngles = look1Angles;
+							break;
+						case TILT2:
+							startPos = look1Pos;
+							startAngles = look1Angles;
+							endPos = look2Pos;
+							endAngles = look2Angles;
+							break;
+						case UNTILT:
+							startPos = look2Pos;
+							startAngles = look2Angles;
+							endPos = idlePos;
+							endAngles = idleAngles;
+							break;
+					}
+					
+					GL11.glRotatef(startAngles.y + (endAngles.y - startAngles.y) * interp, 0f, 1f, 0f); 
+					GL11.glRotatef(startAngles.z + (endAngles.z - startAngles.z) * interp, 0f, 0f, 1f); 
+					GL11.glTranslatef(startPos.x + (endPos.x - startPos.x) * interp,
+							startPos.y + (endPos.y - startPos.y) * interp,
+							startPos.z + (endPos.z - startPos.z) * interp);
+					
+					
+					//GL11.glRotatef(70f, 0f, 1f, 0f);
+					//GL11.glTranslatef(0.25f, 0.25f, 0f);
+					
+					//GL11.glRotatef(-60f, 0f, 1f, 0f);
+					//GL11.glRotatef(60f, 0f, 0f, 1f);
+					//GL11.glTranslatef(0.25f, 0.25f, -0.5f);
+					
+					GL11.glRotatef(-animations.recoilAngle * (float)Math.sqrt(gunType.recoil) * 1.5f, 0F, 0F, 1F);
+					GL11.glTranslatef(animations.recoilOffset.x, animations.recoilOffset.y, animations.recoilOffset.z);
 					
 					if(model.spinningCocking)
 					{
@@ -326,6 +407,11 @@ public class RenderGun implements IItemRenderer
 		AttachmentType stockAttachment = type.getStock(item);
 		AttachmentType gripAttachment = type.getGrip(item);
 		
+		ItemStack scopeItemStack = type.getScopeItemStack(item);
+		ItemStack barrelItemStack = type.getBarrelItemStack(item);
+		ItemStack stockItemStack = type.getStockItemStack(item);
+		ItemStack gripItemStack = type.getGripItemStack(item);
+		
 		ItemStack[] bulletStacks = new ItemStack[type.numAmmoItemsInGun];
 		boolean empty = true;
 		for(int i = 0; i < type.numAmmoItemsInGun; i++)
@@ -337,7 +423,18 @@ public class RenderGun implements IItemRenderer
 				
 		//Load texture
 		//renderEngine.bindTexture(FlansModResourceHandler.getPaintjobTexture(type.getPaintjob(item.getTagCompound().getString("Paint"))));
-		renderEngine.bindTexture(FlansModResourceHandler.getPaintjobTexture(type.getPaintjob(item.getItemDamage())));
+		Paintjob paintjob = type.getPaintjob(item.getItemDamage());
+		if(bindTextures)
+		{
+			if(PaintableType.HasCustomPaintjob(item))
+			{
+				renderEngine.bindTexture(PaintableType.GetCustomPaintjobSkinResource(item));
+			}
+			else
+			{
+				renderEngine.bindTexture(FlansModResourceHandler.getPaintjobTexture(paintjob));
+			}
+		}
 		
 		if(scopeAttachment != null)
 			GL11.glTranslatef(0F, -scopeAttachment.model.renderOffset / 16F, 0F);
@@ -348,6 +445,7 @@ public class RenderGun implements IItemRenderer
 			GL11.glScalef(type.modelScale, type.modelScale, type.modelScale);
 
 			model.renderGun(f);
+			model.renderCustom(f, animations);
 			if(scopeAttachment == null && !model.scopeIsOnSlide && !model.scopeIsOnBreakAction)
 				model.renderDefaultScope(f);
 			if(barrelAttachment == null)
@@ -606,7 +704,8 @@ public class RenderGun implements IItemRenderer
 		{
 			GL11.glPushMatrix();
 			{
-				renderEngine.bindTexture(FlansModResourceHandler.getTexture(scopeAttachment));
+				Paintjob scopepaintjob = scopeAttachment.getPaintjob(scopeItemStack.getItemDamage());
+				renderEngine.bindTexture(FlansModResourceHandler.getPaintjobTexture(scopepaintjob));
 				if(model.scopeIsOnBreakAction)
 				{
 					GL11.glTranslatef(model.barrelBreakPoint.x, model.barrelBreakPoint.y, model.barrelBreakPoint.z);
@@ -631,7 +730,8 @@ public class RenderGun implements IItemRenderer
 		{
 			GL11.glPushMatrix();
 			{
-				renderEngine.bindTexture(FlansModResourceHandler.getTexture(gripAttachment));
+				Paintjob grippaintjob = gripAttachment.getPaintjob(gripItemStack.getItemDamage());
+				renderEngine.bindTexture(FlansModResourceHandler.getPaintjobTexture(grippaintjob));
 				GL11.glTranslatef(model.gripAttachPoint.x * type.modelScale, model.gripAttachPoint.y * type.modelScale, model.gripAttachPoint.z * type.modelScale);
 				if(model.gripIsOnPump)
 					GL11.glTranslatef(-(1 - Math.abs(animations.lastPumped + (animations.pumped - animations.lastPumped) * smoothing)) * model.pumpHandleDistance, 0F, 0F);
@@ -649,7 +749,8 @@ public class RenderGun implements IItemRenderer
 		{
 			GL11.glPushMatrix();
 			{
-				renderEngine.bindTexture(FlansModResourceHandler.getTexture(barrelAttachment));
+				Paintjob barrelpaintjob = barrelAttachment.getPaintjob(barrelItemStack.getItemDamage());
+				renderEngine.bindTexture(FlansModResourceHandler.getPaintjobTexture(barrelpaintjob));
 				GL11.glTranslatef(model.barrelAttachPoint.x * type.modelScale, model.barrelAttachPoint.y * type.modelScale, model.barrelAttachPoint.z * type.modelScale);
 				GL11.glScalef(barrelAttachment.modelScale, barrelAttachment.modelScale, barrelAttachment.modelScale);
 				ModelAttachment barrelModel = barrelAttachment.model;
@@ -665,7 +766,8 @@ public class RenderGun implements IItemRenderer
 		{
 			GL11.glPushMatrix();
 			{
-				renderEngine.bindTexture(FlansModResourceHandler.getTexture(stockAttachment));
+				Paintjob stockpaintjob = stockAttachment.getPaintjob(stockItemStack.getItemDamage());
+				renderEngine.bindTexture(FlansModResourceHandler.getPaintjobTexture(stockpaintjob));
 				GL11.glTranslatef(model.stockAttachPoint.x * type.modelScale, model.stockAttachPoint.y * type.modelScale, model.stockAttachPoint.z * type.modelScale);
 				GL11.glScalef(stockAttachment.modelScale, stockAttachment.modelScale, stockAttachment.modelScale);
 				ModelAttachment stockModel = stockAttachment.model;

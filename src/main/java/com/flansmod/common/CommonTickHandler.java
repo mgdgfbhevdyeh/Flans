@@ -64,7 +64,10 @@ public class CommonTickHandler
 		}
 		case END :
 		{
-			TeamsManager.getInstance().tick();
+			if(TeamsManager.getInstance() != null)
+			{
+				TeamsManager.getInstance().tick();
+			}
 			FlansMod.playerHandler.serverTick();
 			FlansMod.ticker++;
 			break;
@@ -79,7 +82,7 @@ public class CommonTickHandler
 		if(event.entity instanceof EntityItem && !(event.entity instanceof EntityItemCustomRender))
 		{
 			ItemStack stack = getEntityItem((EntityItem)event.entity);
-			if(stack != null && stack.getItem() instanceof ItemGun && ((ItemGun)stack.getItem()).type.modelString != null)
+			if(stack != null && stack.getItem() instanceof ItemGun && ((ItemGun)stack.getItem()).GetType().modelString != null)
 			{
 				//event.world.spawnEntityInWorld(new EntityItemCustomRender((EntityItem)event.entity));
 				replacementItemEntities.add(new EntityItemCustomRender((EntityItem)event.entity));

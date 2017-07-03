@@ -3,10 +3,13 @@ package com.flansmod.common.teams;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.minecraft.client.model.ModelBase;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.World;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.guns.AttachmentType;
@@ -16,7 +19,7 @@ import com.flansmod.common.guns.Paintjob;
 import com.flansmod.common.types.InfoType;
 import com.flansmod.common.types.TypeFile;
 
-public class PlayerClass extends InfoType
+public class PlayerClass extends InfoType implements IPlayerClass
 {
 	public static List<PlayerClass> classes = new ArrayList<PlayerClass>();
 	
@@ -26,6 +29,23 @@ public class PlayerClass extends InfoType
 	
 	/** Override armour. If this is set, then it will override the team armour */
 	public ItemStack hat, chest, legs, shoes;
+	
+	@Override
+	public List<ItemStack> GetStartingItems() { return startingItems; }
+	@Override
+	public boolean GetHorse() { return horse; }
+	@Override
+	public ItemStack GetHat() { return hat; }
+	@Override
+	public ItemStack GetChest() { return chest; }
+	@Override
+	public ItemStack GetLegs() { return legs; }
+	@Override
+	public ItemStack GetShoes() { return shoes; }
+	@Override
+	public String GetName() { return name; }
+	@Override
+	public String GetShortName() { return name; }
 	
 	public PlayerClass(TypeFile file)
 	{
@@ -93,7 +113,6 @@ public class PlayerClass extends InfoType
 	@Override
 	protected void postRead(TypeFile file) 
 	{
-		super.postRead(file);
 		onWorldLoad(null);
 	}
 	
@@ -121,7 +140,7 @@ public class PlayerClass extends InfoType
 					if(item != null && item.getUnlocalizedName() != null && (item.getUnlocalizedName().equals(itemNames[0]) || (item.getUnlocalizedName().split("\\.").length > 1 && item.getUnlocalizedName().split("\\.")[1].equals(itemNames[0]))))
 						matchingItem = item;
 				}
-				for(InfoType type : InfoType.infoTypes)
+				for(InfoType type : InfoType.infoTypes.values())
 				{
 					if(type.shortName.equals(itemNames[0]) && type.item != null)
 						matchingItem = type.item;
@@ -142,7 +161,7 @@ public class PlayerClass extends InfoType
 				ItemStack stack = new ItemStack(matchingItem, amount, damage);
 				if(itemNames.length > 1 && matchingItem instanceof ItemGun)
 				{
-					GunType gunType = ((ItemGun)matchingItem).type;
+					GunType gunType = ((ItemGun)matchingItem).GetType();
 			    	NBTTagCompound tags = new NBTTagCompound();
 			    	NBTTagCompound attachmentTags = new NBTTagCompound();
 			    	int genericID = 0;
@@ -191,6 +210,18 @@ public class PlayerClass extends InfoType
 			if(playerClass.shortName.equals(s))
 				return playerClass;
 		}
+		return null;
+	}
+
+	@Override
+	protected void preRead(TypeFile file)
+	{
+	}
+
+	@Override
+	@SideOnly(Side.CLIENT)
+	public ModelBase GetModel()
+	{
 		return null;
 	}
 }

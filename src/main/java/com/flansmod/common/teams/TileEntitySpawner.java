@@ -11,16 +11,17 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
-import net.minecraft.server.gui.IUpdatePlayerListBox;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.ITickable;
 import net.minecraftforge.common.ForgeChunkManager.Ticket;
 
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.driveables.ItemPlane;
 import com.flansmod.common.driveables.ItemVehicle;
 import com.flansmod.common.guns.ItemAAGun;
+import com.google.common.collect.ImmutableMap;
 
-public class TileEntitySpawner extends TileEntity implements ITeamObject, IUpdatePlayerListBox
+public class TileEntitySpawner extends TileEntity implements ITeamObject, ITickable
 {
 	public static final PropertyInteger TYPE = PropertyInteger.create("type", 0, 2);
 	
@@ -230,8 +231,13 @@ public class TileEntitySpawner extends TileEntity implements ITeamObject, IUpdat
 	@Override
 	public boolean isSpawnPoint()
 	{
-		int metadata = ((Integer)worldObj.getBlockState(pos).getValue(TYPE)).intValue();
-		return metadata == 1;
+		if(worldObj.getBlockState(pos).getProperties().containsKey(TYPE))
+		{
+			int metadata = ((Integer)worldObj.getBlockState(pos).getValue(TYPE)).intValue();
+			return metadata == 1;
+		}
+		FlansMod.Assert(false, "Spawn point has no property");
+		return false;
 	}
 	/*
 	

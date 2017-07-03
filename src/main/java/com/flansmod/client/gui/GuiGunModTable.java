@@ -16,10 +16,10 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.World;
-import net.minecraftforge.client.IItemRenderer.ItemRenderType;
 
 import com.flansmod.client.ClientProxy;
 import com.flansmod.client.model.GunAnimations;
+import com.flansmod.client.model.RenderGun.GunRenderType;
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.guns.ContainerGunModTable;
 import com.flansmod.common.guns.GunType;
@@ -54,7 +54,7 @@ public class GuiGunModTable extends GuiContainer
 			ItemStack tempStack = gunStack.copy();
 			if(hoveringOver != null)
 				tempStack.setItemDamage(hoveringOver.ID);
-			GunType gunType = ((ItemGun)gunStack.getItem()).type;
+			GunType gunType = ((ItemGun)gunStack.getItem()).GetType();
 			if(gunType.model != null)
 			{
 				GL11.glPushMatrix();
@@ -74,7 +74,7 @@ public class GuiGunModTable extends GuiContainer
 				GL11.glRotatef(20, 0F, 1F, 0F);
 				GL11.glScalef(-50F, 50F, 50F);
 				//ClientProxy.gunRenderer.renderGun(gunStack, gunType, 1F / 16F, gunType.model, GunAnimations.defaults, 0F);
-				ClientProxy.gunRenderer.renderItem(ItemRenderType.ENTITY, tempStack);
+				ClientProxy.gunRenderer.renderItem(GunRenderType.ENTITY, tempStack);
 				GL11.glPopMatrix();
 			}
 		}
@@ -97,7 +97,7 @@ public class GuiGunModTable extends GuiContainer
         ItemStack gunStack = inventorySlots.getSlot(0).getStack();
         if(gunStack != null && gunStack.getItem() instanceof ItemGun)
         {
-        	GunType gunType = ((ItemGun)gunStack.getItem()).type;
+        	GunType gunType = ((ItemGun)gunStack.getItem()).GetType();
         	if(gunType.allowBarrelAttachments)
         	{
         		drawTexturedModalRect(xOrigin + 51, yOrigin + 107, 176, 122, 22, 22);
@@ -244,7 +244,7 @@ public class GuiGunModTable extends GuiContainer
 		ItemStack gunStack = inventorySlots.getSlot(0).getStack();
         if(gunStack != null && gunStack.getItem() instanceof ItemGun)
         {
-        	GunType gunType = ((ItemGun)gunStack.getItem()).type;
+        	GunType gunType = ((ItemGun)gunStack.getItem()).GetType();
         	int numPaintjobs = gunType.paintjobs.size();
         	int numRows = numPaintjobs / 2 + 1;
         	

@@ -14,9 +14,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.World;
-import net.minecraftforge.client.IItemRenderer;
-import net.minecraftforge.client.IItemRenderer.ItemRenderType;
-import net.minecraftforge.client.IItemRenderer.ItemRendererHelper;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -25,13 +22,16 @@ import com.flansmod.client.FlansModResourceHandler;
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.driveables.DriveablePart;
 import com.flansmod.common.driveables.DriveablePosition;
+import com.flansmod.common.driveables.DriveableType;
+import com.flansmod.common.driveables.EntityDriveable;
 import com.flansmod.common.driveables.EntityPlane;
 import com.flansmod.common.driveables.EntityVehicle;
 import com.flansmod.common.driveables.EnumDriveablePart;
 import com.flansmod.common.driveables.ItemVehicle;
 import com.flansmod.common.driveables.VehicleType;
+import com.flansmod.common.guns.Paintjob;
 
-public class RenderVehicle extends Render implements IItemRenderer
+public class RenderVehicle extends Render
 {
 	public RenderVehicle(RenderManager renderManager) 
 	{
@@ -165,76 +165,9 @@ public class RenderVehicle extends Render implements IItemRenderer
 	@Override
 	protected ResourceLocation getEntityTexture(Entity entity) 
 	{
-		return FlansModResourceHandler.getTexture(((EntityVehicle)entity).getVehicleType());
-	}
-	
-	@Override
-	public boolean handleRenderType(ItemStack item, ItemRenderType type) 
-	{
-		switch(type)
-		{
-		case EQUIPPED : case EQUIPPED_FIRST_PERSON : case ENTITY : return Minecraft.getMinecraft().gameSettings.fancyGraphics && item != null && item.getItem() instanceof ItemVehicle && ((ItemVehicle)item.getItem()).type.model != null;
-		default : break;
-		}
-		return false;
-	}
-
-	@Override
-	public boolean shouldUseRenderHelper(ItemRenderType type, ItemStack item, ItemRendererHelper helper) 
-	{
-		return false;
-	}
-
-	@Override
-	public void renderItem(ItemRenderType type, ItemStack item, Object... data) 
-	{
-		GL11.glPushMatrix();
-		if(item != null && item.getItem() instanceof ItemVehicle)
-		{
-			VehicleType vehicleType = ((ItemVehicle)item.getItem()).type;
-			if(vehicleType.model != null)
-			{
-				float scale = 1F;
-				switch(type)
-				{
-				case ENTITY:
-				{
-					scale = 1.5F;
-					//GL11.glRotatef(((EntityItem)data[1]).ticksExisted, 0F, 1F, 0F);
-					break;
-				}
-				case INVENTORY:
-				{
-					scale = 0.70F;
-					GL11.glTranslatef(0F, -0.05F, 0F);
-					break;
-				}
-				case EQUIPPED:
-				{
-					GL11.glRotatef(0F, 0F, 0F, 1F);
-					GL11.glRotatef(270F, 1F, 0F, 0F);
-					GL11.glRotatef(270F, 0F, 1F, 0F);
-					GL11.glTranslatef(0F, 0.25F, 0F);
-					scale = 0.5F;
-					break;
-				}
-				case EQUIPPED_FIRST_PERSON:
-				{
-					//GL11.glRotatef(25F, 0F, 0F, 1F); 
-					GL11.glRotatef(45F, 0F, 1F, 0F);
-					GL11.glTranslatef(-0.5F, 0.5F, -0.5F);
-					break;
-				}
-				default : break;
-				}
-				
-				GL11.glScalef(scale / vehicleType.cameraDistance, scale / vehicleType.cameraDistance, scale / vehicleType.cameraDistance);
-				Minecraft.getMinecraft().renderEngine.bindTexture(FlansModResourceHandler.getTexture(vehicleType));
-				ModelDriveable model = vehicleType.model;
-				model.render(vehicleType);
-			}
-		}
-		GL11.glPopMatrix();
+		DriveableType type = ((EntityDriveable)entity).getDriveableType();
+		Paintjob paintjob = type.getPaintjob(((EntityDriveable)entity).getDriveableData().paintjobID);
+		return FlansModResourceHandler.getPaintjobTexture(paintjob);
 	}
 	
 	@SubscribeEvent

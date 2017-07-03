@@ -7,6 +7,7 @@ import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.model.ModelBiped;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.entity.RenderBiped;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
@@ -73,8 +74,6 @@ public class ClientProxyApocalypse extends CommonProxyApocalypse
 		RenderingRegistry.registerEntityRenderingHandler(EntityTeleporter.class, new RenderTeleporter(Minecraft.getMinecraft().getRenderManager()));
 		RenderingRegistry.registerEntityRenderingHandler(EntityAIMecha.class, new RenderMecha(Minecraft.getMinecraft().getRenderManager()));
 		RenderingRegistry.registerEntityRenderingHandler(EntityNukeDrop.class, new RenderNukeDrop(Minecraft.getMinecraft().getRenderManager()));
-		
-		FlansMod.getPacketHandler().registerPacket(PacketApocalypseCountdown.class);
 	}
 	
 	private void registerVanillaItemModel(Item... items)
@@ -127,7 +126,7 @@ public class ClientProxyApocalypse extends CommonProxyApocalypse
 		}
 		
 		//Draw white screen if we are being nuked
-		ScaledResolution scaledresolution = new ScaledResolution(FlansModClient.minecraft, FlansModClient.minecraft.displayWidth, FlansModClient.minecraft.displayHeight);
+		ScaledResolution scaledresolution = new ScaledResolution(FlansModClient.minecraft);
 		int i = scaledresolution.getScaledWidth();
 		int j = scaledresolution.getScaledHeight();
 					
@@ -158,11 +157,11 @@ public class ClientProxyApocalypse extends CommonProxyApocalypse
 						GL11.glColor4f(1F, 1F, 1F, alpha);
 						GL11.glDisable(3008 /* GL_ALPHA_TEST */);
 
-						tessellator.getWorldRenderer().startDrawingQuads();
-						tessellator.getWorldRenderer().addVertexWithUV(i / 2 - 2 * j, j, -90D, 0.0D, 1.0D);
-						tessellator.getWorldRenderer().addVertexWithUV(i / 2 + 2 * j, j, -90D, 1.0D, 1.0D);
-						tessellator.getWorldRenderer().addVertexWithUV(i / 2 + 2 * j, 0.0D, -90D, 1.0D, 0.0D);
-						tessellator.getWorldRenderer().addVertexWithUV(i / 2 - 2 * j, 0.0D, -90D, 0.0D, 0.0D);
+						tessellator.getWorldRenderer().begin(7, DefaultVertexFormats.POSITION_TEX);
+						tessellator.getWorldRenderer().pos(i / 2 - 2 * j, j, -90D).tex(0.0D, 1.0D).endVertex();
+						tessellator.getWorldRenderer().pos(i / 2 + 2 * j, j, -90D).tex(1.0D, 1.0D).endVertex();
+				        tessellator.getWorldRenderer().pos(i / 2 + 2 * j, 0.0D, -90D).tex(1.0D, 0.0D).endVertex();
+				        tessellator.getWorldRenderer().pos(i / 2 - 2 * j, 0.0D, -90D).tex(0.0D, 0.0D).endVertex();
 						tessellator.draw();
 						GL11.glDepthMask(true);
 						GL11.glEnable(2929 /* GL_DEPTH_TEST */);

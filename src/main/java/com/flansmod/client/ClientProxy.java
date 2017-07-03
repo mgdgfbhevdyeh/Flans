@@ -19,8 +19,10 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.world.World;
 import net.minecraftforge.client.MinecraftForgeClient;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.client.FMLClientHandler;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.client.registry.RenderingRegistry;
@@ -46,6 +48,8 @@ import com.flansmod.client.gui.GuiDriveableRepair;
 import com.flansmod.client.gui.GuiGunBox;
 import com.flansmod.client.gui.GuiGunModTable;
 import com.flansmod.client.gui.GuiMechaInventory;
+import com.flansmod.client.gui.GuiPaintjobTable;
+import com.flansmod.client.gui.teams.GuiLandingPage;
 import com.flansmod.client.model.RenderAAGun;
 import com.flansmod.client.model.RenderBullet;
 import com.flansmod.client.model.RenderFlag;
@@ -64,6 +68,8 @@ import com.flansmod.common.CommonProxy;
 import com.flansmod.common.EntityItemCustomRender;
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.ItemHolderType;
+import com.flansmod.common.PlayerData;
+import com.flansmod.common.PlayerHandler;
 import com.flansmod.common.TileEntityItemHolder;
 import com.flansmod.common.driveables.DriveablePart;
 import com.flansmod.common.driveables.DriveableType;
@@ -90,6 +96,7 @@ import com.flansmod.common.network.PacketBuyArmour;
 import com.flansmod.common.network.PacketBuyWeapon;
 import com.flansmod.common.network.PacketCraftDriveable;
 import com.flansmod.common.network.PacketRepairDriveable;
+import com.flansmod.common.paintjob.TileEntityPaintjobTable;
 import com.flansmod.common.teams.ArmourBoxType;
 import com.flansmod.common.teams.BlockArmourBox;
 import com.flansmod.common.teams.EntityFlag;
@@ -98,6 +105,7 @@ import com.flansmod.common.teams.TileEntitySpawner;
 import com.flansmod.common.tools.EntityParachute;
 import com.flansmod.common.types.EnumType;
 import com.flansmod.common.types.InfoType;
+import com.flansmod.common.types.PaintableType;
 
 public class ClientProxy extends CommonProxy
 {
@@ -122,13 +130,13 @@ public class ClientProxy extends CommonProxy
 		flansModClient.load();
 		
 		//Register a null vanilla renderer to avoid error messages spamming chat - doesn't work.
-		for(InfoType type : InfoType.infoTypes)
+		for(InfoType type : InfoType.infoTypes.values())
 		{
 			if(type != null && type.item != null)
 			{
-				if(type instanceof GunType)
+				if(type instanceof PaintableType)
 				{
-					for(Paintjob paintjob : ((GunType)type).paintjobs)
+					for(Paintjob paintjob : ((PaintableType)type).paintjobs)
 					{
 						ModelBakery.addVariantName(type.item, new String[] {"flansmod:" + type.shortName + (paintjob.iconName.equals("") ? "" : ("_" + paintjob.iconName))});
 						Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(type.item, paintjob.ID, new ModelResourceLocation("flansmod:" + type.shortName + (paintjob.iconName.equals("") ? "" : ("_" + paintjob.iconName)), "inventory"));
@@ -142,6 +150,12 @@ public class ClientProxy extends CommonProxy
 		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(Item.getItemFromBlock(FlansMod.workbench), 1, new ModelResourceLocation("flansmod:flansWorkbench_vehicles", "inventory"));
 		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(Item.getItemFromBlock(FlansMod.workbench), 2, new ModelResourceLocation("flansmod:flansWorkbench_parts", "inventory"));
 		ModelBakery.addVariantName(Item.getItemFromBlock(FlansMod.workbench), new String[] {"flansmod:flansWorkbench_guns", "flansmod:flansWorkbench_parts", "flansmod:flansWorkbench_vehicles"});
+
+		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(FlansMod.opStick, 0, new ModelResourceLocation("flansmod:opstick_Ownership", "inventory"));
+		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(FlansMod.opStick, 1, new ModelResourceLocation("flansmod:opstick_Connecting", "inventory"));
+		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(FlansMod.opStick, 2, new ModelResourceLocation("flansmod:opstick_Mapping", "inventory"));
+		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(FlansMod.opStick, 3, new ModelResourceLocation("flansmod:opstick_Destruction", "inventory"));
+		ModelBakery.addVariantName(FlansMod.opStick, new String[] {"flansmod:opstick_Ownership", "flansmod:opstick_Connecting", "flansmod:opstick_Mapping", "flansmod:opstick_Destruction"});
 		
 		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(Item.getItemFromBlock(FlansMod.spawner), 0, new ModelResourceLocation("flansmod:teamsSpawner_items", "inventory"));
 		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(Item.getItemFromBlock(FlansMod.spawner), 1, new ModelResourceLocation("flansmod:teamsSpawner_players", "inventory"));
@@ -149,6 +163,9 @@ public class ClientProxy extends CommonProxy
 		ModelBakery.addVariantName(Item.getItemFromBlock(FlansMod.spawner), new String[] {"flansmod:teamsSpawner_items", "flansmod:teamsSpawner_players", "flansmod:teamsSpawner_vehicles"});
 
 		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(FlansMod.flag, 0, new ModelResourceLocation("flansmod:flagpole", "inventory"));
+		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(FlansMod.rainbowPaintcan, 0, new ModelResourceLocation("flansmod:rainbowPaintcan", "inventory"));
+		Minecraft.getMinecraft().getRenderItem().getItemModelMesher().register(Item.getItemFromBlock(FlansMod.paintjobTable), 0, new ModelResourceLocation("flansmod:paintjobTable", "inventory"));
+		ModelBakery.addVariantName(Item.getItemFromBlock(FlansMod.paintjobTable), new String[] {"flansmod:paintjobTable"});
 		
 		gunRenderer = new RenderGun();
 		grenadeRenderer = new RenderGrenade(Minecraft.getMinecraft().getRenderManager());
@@ -157,22 +174,24 @@ public class ClientProxy extends CommonProxy
 		mechaRenderer = new RenderMecha(Minecraft.getMinecraft().getRenderManager());
 		
 		//Register custom item renderers
-		for(GunType gunType : GunType.guns.values())
-			MinecraftForgeClient.registerItemRenderer(gunType.item, gunRenderer);		
-		for(GrenadeType grenadeType : GrenadeType.grenades)
-			MinecraftForgeClient.registerItemRenderer(grenadeType.item, grenadeRenderer);		
-		for(PlaneType planeType : PlaneType.types)
-			MinecraftForgeClient.registerItemRenderer(planeType.item, planeRenderer);		
-		for(VehicleType vehicleType : VehicleType.types)
-			MinecraftForgeClient.registerItemRenderer(vehicleType.item, vehicleRenderer);		
-		for(MechaType mechaType : MechaType.types)
-			MinecraftForgeClient.registerItemRenderer(mechaType.item, mechaRenderer);
+		//for(GunType gunType : GunType.guns.values())
+		//	MinecraftForgeClient.registerItemRenderer(gunType.item, gunRenderer);		
+		//for(GrenadeType grenadeType : GrenadeType.grenades)
+		//	MinecraftForgeClient.registerItemRenderer(grenadeType.item, grenadeRenderer);		
+		//for(PlaneType planeType : PlaneType.types)
+		//	MinecraftForgeClient.registerItemRenderer(planeType.item, planeRenderer);		
+		//for(VehicleType vehicleType : VehicleType.types)
+		//	MinecraftForgeClient.registerItemRenderer(vehicleType.item, vehicleRenderer);		
+		//for(MechaType mechaType : MechaType.types)
+		//	MinecraftForgeClient.registerItemRenderer(mechaType.item, mechaRenderer);
 
 		
         ClientRegistry.bindTileEntitySpecialRenderer(TileEntityItemHolder.class, new RenderItemHolder());
-		
-		FMLCommonHandler.instance().bus().register(new KeyInputHandler());
-		new TickHandlerClient();
+				
+        // Create one event handler for the client and register it with MC Forge and FML
+		ClientEventHandler eventHandler = new ClientEventHandler();
+		FMLCommonHandler.instance().bus().register(eventHandler);
+		MinecraftForge.EVENT_BUS.register(eventHandler);
 	}
 		
 	/** This method reloads all textures from all mods and resource packs. It forces Minecraft to read images from the content packs added after mod init */
@@ -303,6 +322,7 @@ public class ClientProxy extends CommonProxy
 		case 10: return new GuiMechaInventory	(player.inventory, world, (EntityMecha)((EntitySeat)player.ridingEntity).driveable);
 		case 11: return new GuiArmourBox(player.inventory, ((BlockArmourBox)world.getBlockState(new BlockPos(x, y, z)).getBlock()).type);
 		case 12: return new GuiDriveableInventory(player.inventory, world, ((EntitySeat)player.ridingEntity).driveable, 3);
+		case 13: return new GuiPaintjobTable(player.inventory, world, (TileEntityPaintjobTable)world.getTileEntity(new BlockPos(x, y, z)));
 		}
 		return null;
 	}
@@ -375,14 +395,16 @@ public class ClientProxy extends CommonProxy
 	public void buyGun(GunBoxType type, InfoType gun)
 	{
 		FlansMod.getPacketHandler().sendToServer(new PacketBuyWeapon(type, gun));
-		FlansModClient.shootTimeLeft = FlansModClient.shootTimeRight = 10;
+		PlayerData data = PlayerHandler.getPlayerData(Minecraft.getMinecraft().thePlayer);
+		data.shootTimeLeft = data.shootTimeRight = 10;
 	}
 	
 	@Override
 	public void buyArmour(String shortName, int piece, ArmourBoxType box)
 	{
 		FlansMod.getPacketHandler().sendToServer(new PacketBuyArmour(box.shortName, shortName, piece));
-		FlansModClient.shootTimeLeft = FlansModClient.shootTimeRight = 10;
+		PlayerData data = PlayerHandler.getPlayerData(Minecraft.getMinecraft().thePlayer);
+		data.shootTimeLeft = data.shootTimeRight = 10;
 	}
 	
 	@Override
@@ -443,9 +465,9 @@ public class ClientProxy extends CommonProxy
 	}
 	
 	@Override
-	public void addMissingJSONs(List<InfoType> types)
+	public void addMissingJSONs(HashMap<Integer, InfoType> types)
 	{
-		for(InfoType type : types)
+		for(InfoType type : types.values())
 		{
 			try
 			{
@@ -474,9 +496,9 @@ public class ClientProxy extends CommonProxy
 								"\", \"east\": \"flansmod:blocks/" + box.sideTexturePath + "\", \"south\": \"flansmod:blocks/" + box.sideTexturePath + "\", \"west\": \"flansmod:blocks/" + box.sideTexturePath + "\" } } ");
 						createJSONFile(new File(blockstatesDir, type.shortName + ".json"), "{ \"variants\": { \"normal\": { \"model\": \"flansmod:" + type.shortName + "\" } } }");
 					}
-					else if(typeToCheckFor == EnumType.gun)
+					else if(type instanceof PaintableType && type.GetModel() != null)
 					{
-						for(Paintjob paintjob : ((GunType)type).paintjobs)
+						for(Paintjob paintjob : ((PaintableType)type).paintjobs)
 						{
 							createJSONFile(new File(itemModelsDir, type.shortName + (paintjob.iconName.equals("") ? "" : ("_" + paintjob.iconName)) + ".json"), "{ \"parent\": \"builtin/generated\", \"textures\": { \"layer0\": \"flansmod:items/" + type.iconPath + (paintjob.iconName.equals("") ? "" : ("_" + paintjob.iconName)) + "\" }, \"display\": { \"thirdperson\": { \"rotation\": [ 0, 90, -45 ], \"translation\": [ 0, 2, -2 ], \"scale\": [ 0, 0, 0 ] }, \"firstperson\": { \"rotation\": [ 0, -135, 25 ], \"translation\": [ 0, 4, 2 ], \"scale\": [ 1.7, 1.7, 1.7 ] } } }");							
 						}
@@ -494,7 +516,7 @@ public class ClientProxy extends CommonProxy
 					//Create the item JSON for normal items
 					else if(typeToCheckFor != EnumType.team && typeToCheckFor != EnumType.playerClass)
 					{
-						createJSONFile(new File(itemModelsDir, type.shortName + ".json"), "{ \"parent\": \"builtin/generated\", \"textures\": { \"layer0\": \"flansmod:items/" + type.iconPath + "\" }, \"display\": { \"thirdperson\": { \"rotation\": [ -90, 0, 0 ], \"translation\": [ 0, 1, -3 ], \"scale\": [ 0.55, 0.55, 0.55 ] }, \"firstperson\": { \"rotation\": [ 0, -135, 25 ], \"translation\": [ 0, 4, 2 ], \"scale\": [ 1.7, 1.7, 1.7 ] } } }");
+						createJSONFile(new File(itemModelsDir, type.shortName + ".json"), "{ \"parent\": \"builtin/generated\", \"textures\": { \"layer0\": \"flansmod:items/" + type.iconPath + "\" }, \"display\": { \"thirdperson\": { \"rotation\": [ 0, 90, -35 ], \"translation\": [ 0, 1.25, -2.5 ], \"scale\": [ 0.85, 0.85, 0.85 ] }, \"firstperson\": { \"rotation\": [ 0, -135, 25 ], \"translation\": [ 0, 4, 2 ], \"scale\": [ 1.7, 1.7, 1.7 ] } } }");
 					}
 				}
 			}

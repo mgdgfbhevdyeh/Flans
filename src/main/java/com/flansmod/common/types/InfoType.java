@@ -1,13 +1,17 @@
 package com.flansmod.common.types;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 
 import net.minecraft.block.material.Material;
+import net.minecraft.client.model.ModelBase;
 import net.minecraft.init.Items;
+import net.minecraft.item.EnumDyeColor;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.WeightedRandomChestContent;
@@ -16,13 +20,16 @@ import net.minecraftforge.common.ChestGenHooks;
 import net.minecraftforge.common.DungeonHooks;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.registry.GameRegistry;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.flansmod.common.FlansMod;
+import com.flansmod.common.guns.Paintjob;
 
 public class InfoType
 {
 	/** infoTypes */
-	public static List<InfoType> infoTypes = new ArrayList<InfoType>();
+	public static HashMap<Integer, InfoType> infoTypes = new HashMap<Integer, InfoType>();
 
 	public String contentPack;
 	public Item item;
@@ -36,13 +43,11 @@ public class InfoType
 	public String name;
 	public String shortName;
 	public String texture;
-	public String modelString;
+	public String modelString = null;
 	public String description;
 	public float modelScale = 1F;
 	/** If this is set to false, then this item cannot be dropped */
 	public boolean canDrop = true;
-	
-
 	
 	/** The probability that this item will appear in a dungeon chest. 
 	 *  Scaled so that each chest is likely to have a fixed number of Flan's Mod items.
@@ -57,7 +62,6 @@ public class InfoType
 	public InfoType(TypeFile file)
 	{
 		contentPack = file.contentPack;
-		infoTypes.add(this);
 	}
 	
 	public void read(TypeFile file)
@@ -77,6 +81,8 @@ public class InfoType
 			read(split, file);
 		}
 		postRead(file);
+
+		infoTypes.put(shortName.hashCode(), this);
 		totalDungeonChance += dungeonChance;
 	}
 	
@@ -85,53 +91,41 @@ public class InfoType
 	
 	/** Method for performing actions after reading the type file */
 	protected void postRead(TypeFile file) {}
+	
+	@SideOnly(Side.CLIENT)
+	public ModelBase GetModel() { return null; }
 
 	/** Pack reader */
 	protected void read(String[] split, TypeFile file)
 	{
 		try
 		{
-			if(split[0].equals("Model"))
-				modelString = split[1];
-			else if(split[0].equals("ModelScale"))
-				modelScale = Float.parseFloat(split[1]);
-			else if (split[0].equals("Name"))
-			{
-				name = split[1];
-				for (int i = 0; i < split.length - 2; i++)
-				{
-					name = name + " " + split[i + 2];
-				}
-			}
-			else if (split[0].equals("Description"))
-			{
-				description = split[1];
-				for (int i = 0; i < split.length - 2; i++)
-				{
-					description = description + " " + split[i + 2];
-				}
-			}
-			else if (split[0].equals("ShortName"))
-			{
-				shortName = split[1];
-			}
-			else if (split[0].equals("Colour") || split[0].equals("Color"))
+			// Standard line reads
+			shortName = Read(split, "ShortName", shortName);
+			name = ReadAndConcatenateMultipleStrings(split, "Name", name);
+			description = ReadAndConcatenateMultipleStrings(split, "Description", description);
+			
+			modelString = Read(split, "Model", modelString);
+			modelScale = Read(split, "ModelScale", modelScale);
+			texture = Read(split, "Texture", texture);
+			
+			iconPath = Read(split, "Icon", iconPath);
+
+			dungeonChance = Read(split, "DungeonProbability", dungeonChance);
+			dungeonChance = Read(split, "DungeonLootChance", dungeonChance);
+			
+			recipeOutput = Read(split, "RecipeOutput", recipeOutput);
+			
+			smeltableFrom = Read(split, "SmeltableFrom", smeltableFrom);
+			canDrop = Read(split, "CanDrop", canDrop);
+
+			// More complicated line reads
+			if (split[0].equals("Colour") || split[0].equals("Color"))
 			{
 				colour = (Integer.parseInt(split[1]) << 16) + ((Integer.parseInt(split[2])) << 8) + ((Integer.parseInt(split[3])));
 			}
-			else if (split[0].equals("Icon"))
-			{
-				iconPath = split[1];
-			}
-			else if (split[0].equals("DungeonProbabilty") || split[0].equals("DungeonLootChance"))
-			{
-				dungeonChance = Integer.parseInt(split[1]);
-			}
-			else if (split[0].equals("RecipeOutput"))
-			{
-				recipeOutput = Integer.parseInt(split[1]);
-			}
-			else if (split[0].equals("Recipe"))
+			
+			if (split[0].equals("Recipe"))
 			{
 				recipe = new Object[split.length + 2];
 				for (int i = 0; i < 3; i++)
@@ -157,17 +151,168 @@ public class InfoType
 				recipeLine = split;
 				shapeless = true;
 			}
-			else if (split[0].equals("SmeltableFrom"))
-			{
-				smeltableFrom = split[1];
-			}
-			else if(split[0].equals("CanDrop"))
-				canDrop = Boolean.parseBoolean(split[1]);
-		} catch (Exception e)
+		} 
+		catch (Exception e)
 		{
 			FlansMod.log("Reading file failed : " + shortName);
 			e.printStackTrace();
 		}
+	}
+	
+	/** -------------------------------------------------------------------------------------------------------- */
+	/** HELPER FUNCTIONS FOR READING. Should give better debug output                                            */
+	/** -------------------------------------------------------------------------------------------------------- */
+	protected boolean KeyMatches(String[] split, String key)
+	{
+		return split != null && split.length > 1 && key != null && split[0].toLowerCase().equals(key.toLowerCase());
+	}
+	
+	protected int Read(String[] split, String key, int currentValue)
+	{
+		if(KeyMatches(split, key))
+		{
+			if(split.length == 2)
+			{
+				try
+				{
+					currentValue = Integer.parseInt(split[1]);
+				}
+				catch (Exception e)
+				{
+					InfoType.LogError(shortName, "Incorrect format for " + key + ". Passed in value is not an integer");
+				}
+			}
+			else
+			{
+				InfoType.LogError(shortName, "Incorrect format for " + key + ". Should be \"" + key + " <integer value>\"");
+			}
+		}
+		
+		return currentValue;
+	}
+	
+	protected float Read(String[] split, String key, float currentValue)
+	{
+		if(KeyMatches(split, key))
+		{
+			if(split.length == 2)
+			{
+				try
+				{
+					currentValue = Float.parseFloat(split[1]);
+				}
+				catch (Exception e)
+				{
+					InfoType.LogError(shortName, "Incorrect format for " + key + ". Passed in value is not an float");
+				}
+			}
+			else
+			{
+				InfoType.LogError(shortName, "Incorrect format for " + key + ". Should be \"" + key + " <float value>\"");
+			}
+		}
+		
+		return currentValue;
+	}
+	
+	protected double Read(String[] split, String key, double currentValue)
+	{
+		if(KeyMatches(split, key))
+		{
+			if(split.length == 2)
+			{
+				try
+				{
+					currentValue = Double.parseDouble(split[1]);
+				}
+				catch (Exception e)
+				{
+					InfoType.LogError(shortName, "Incorrect format for " + key + ". Passed in value is not an float");
+				}
+			}
+			else
+			{
+				InfoType.LogError(shortName, "Incorrect format for " + key + ". Should be \"" + key + " <float value>\"");
+			}
+		}
+		
+		return currentValue;
+	}
+	
+	protected String Read(String[] split, String key, String currentValue)
+	{
+		if(KeyMatches(split, key))
+		{
+			if(split.length == 2)
+			{
+				currentValue = split[1];
+			}
+			else
+			{
+				InfoType.LogError(shortName, "Incorrect format for " + key + ". Should be \"" + key + " <singleWord>\"");
+			}
+		}
+		
+		return currentValue;
+	}
+	
+	protected String ReadAndConcatenateMultipleStrings(String[] split, String key, String currentValue)
+	{
+		if(KeyMatches(split, key))
+		{
+			if(split.length > 1)
+			{
+				currentValue = split[1];
+				for (int i = 0; i < split.length - 2; i++)
+				{
+					currentValue = currentValue + " " + split[i + 2];
+				}
+			}
+			else
+			{
+				InfoType.LogError(shortName, "Incorrect format for " + key + ". Should be \"" + key + " <long string>\"");
+			}
+		}
+		
+		return currentValue;
+	}
+	
+	protected boolean Read(String[] split, String key, boolean currentValue)
+	{
+		if(KeyMatches(split, key))
+		{
+			if(split.length == 2)
+			{
+				try
+				{
+					currentValue = Boolean.parseBoolean(split[1]);
+				}
+				catch (Exception e)
+				{
+					InfoType.LogError(shortName, "Incorrect format for " + key + ". Passed in value is not an boolean");
+				}
+			}
+			else
+			{
+				InfoType.LogError(shortName, "Incorrect format for " + key + ". Should be \"" + key + " <true/false>\"");
+			}
+		}
+		
+		return currentValue;
+	}
+	/** -------------------------------------------------------------------------------------------------------- */
+	/**                                                                                                          */
+	/** -------------------------------------------------------------------------------------------------------- */
+	
+	protected static void LogError(String shortName, String s)
+	{
+		FlansMod.log("[Problem in " + shortName + ".txt]" + s);
+	}
+	
+	@Override
+	public String toString()
+	{
+		return super.getClass().getSimpleName() + ": " + shortName;
 	}
 
 	public void addRecipe()
@@ -253,12 +398,7 @@ public class InfoType
 				for (int i = 0; i < (recipeLine.length - 1) / 2; i++)
 				{
 					recipe[i * 2 + rows] = recipeLine[i * 2 + 1].charAt(0);
-					// Split ID with . and if it contains a second part, use it
-					// as damage value.
-					if (recipeLine[i * 2 + 2].contains("."))
-						recipe[i * 2 + rows + 1] = getRecipeElement(recipeLine[i * 2 + 2].split("\\.")[0], Integer.valueOf(recipeLine[i * 2 + 2].split("\\.")[1]));
-					else
-						recipe[i * 2 + rows + 1] = getRecipeElement(recipeLine[i * 2 + 2], 32767);
+					recipe[i * 2 + rows + 1] = getRecipeElement(recipeLine[i * 2 + 2]);
 				}
 				GameRegistry.addRecipe(new ItemStack(item, recipeOutput), recipe);
 			} else
@@ -266,10 +406,7 @@ public class InfoType
 				recipe = new Object[recipeLine.length - 1];
 				for (int i = 0; i < (recipeLine.length - 1); i++)
 				{
-					if (recipeLine[i + 1].contains("."))
-						recipe[i] = getRecipeElement(recipeLine[i + 1].split("\\.")[0], Integer.valueOf(recipeLine[i + 1].split("\\.")[1]));
-					else
-						recipe[i] = getRecipeElement(recipeLine[i + 1], 32767);
+					recipe[i] = getRecipeElement(recipeLine[i + 1]);
 				}
 				GameRegistry.addShapelessRecipe(new ItemStack(item, recipeOutput), recipe);
 			}
@@ -279,12 +416,46 @@ public class InfoType
 			e.printStackTrace();
 		}
 	}
+	
+	/** Return a dye damage value from a string name */
+	protected int getDyeDamageValue(String dyeName)
+	{
+		int damage = -1;
+		for(int i = 0; i < EnumDyeColor.values().length; i++)
+		{
+			if(EnumDyeColor.byDyeDamage(i).getUnlocalizedName().equals(dyeName))
+				damage = i;
+		}
+		if(damage == -1)
+			FlansMod.log("Failed to find dye colour : " + dyeName + " while adding " + contentPack);
+		
+		return damage;
+	}
 
 	public Item getItem()
 	{
 		return item;
 	}
 	
+	public static ItemStack getNonRecipeElement(String str)
+	{					
+		// Split ID with . and if it contains a second part, use it
+		// as damage value.
+		if (str.contains("."))
+			return getRecipeElement(str.split("\\.")[0], Integer.valueOf(str.split("\\.")[1]));
+		else
+			return getRecipeElement(str, 0);
+	}
+	
+	public static ItemStack getRecipeElement(String str)
+	{					
+		// Split ID with . and if it contains a second part, use it
+		// as damage value.
+		if (str.contains("."))
+			return getRecipeElement(str.split("\\.")[0], Integer.valueOf(str.split("\\.")[1]));
+		else
+			return getRecipeElement(str, 32767);
+	}
 	
 	public static ItemStack getRecipeElement(String s, int damage)
 	{
@@ -314,7 +485,7 @@ public class InfoType
 				return new ItemStack(item, amount, damage);
 			}
 		}
-		for(InfoType type : infoTypes)
+		for(InfoType type : infoTypes.values())
 		{
 			if(type.shortName.equals(s))
 				return new ItemStack(type.item, amount, damage);
@@ -337,14 +508,20 @@ public class InfoType
 		
 	}
 	
+	@Override
+	public int hashCode()
+	{
+		return shortName.hashCode();
+	}
+	
 	public static InfoType getType(String s)
 	{
-		for(InfoType type : infoTypes)
-		{
-			if(type.shortName.equals(s))
-				return type;
-		}
-		return null;
+		return infoTypes.get(s.hashCode());
+	}
+	
+	public static InfoType getType(int hash)
+	{
+		return infoTypes.get(hash);
 	}
 
 	public void onWorldLoad(World world) 
@@ -378,7 +555,10 @@ public class InfoType
 	public void addDungeonLoot() 
 	{
 		if(dungeonChance > 0)
-			addToRandomChest(new ItemStack(this.item), (float)(FlansMod.dungeonLootChance * dungeonChance) / (float)totalDungeonChance);
+		{
+			ItemStack stack = new ItemStack(this.item);
+			addToRandomChest(stack, (float)(FlansMod.dungeonLootChance * dungeonChance) / (float)totalDungeonChance);
+		}
 	}
 	
 	protected void addToRandomChest(ItemStack stack, float rawChance)

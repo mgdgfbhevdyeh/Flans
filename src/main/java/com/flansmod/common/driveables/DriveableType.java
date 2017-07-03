@@ -5,25 +5,29 @@ import java.util.HashMap;
 import java.util.List;
 
 import net.minecraft.block.material.Material;
+import net.minecraft.client.model.ModelBase;
 import net.minecraft.init.Items;
 import net.minecraft.item.EnumDyeColor;
 import net.minecraft.item.ItemDye;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
+import com.flansmod.client.FlansModClient;
 import com.flansmod.client.model.ModelDriveable;
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.guns.BulletType;
 import com.flansmod.common.guns.EnumFireMode;
 import com.flansmod.common.parts.PartType;
 import com.flansmod.common.types.InfoType;
+import com.flansmod.common.types.PaintableType;
 import com.flansmod.common.types.TypeFile;
 import com.flansmod.common.vector.Vector3f;
 
-public abstract class DriveableType extends InfoType
+public abstract class DriveableType extends PaintableType
 {
 	@SideOnly(value = Side.CLIENT)
 	/** The plane model */
@@ -35,7 +39,7 @@ public abstract class DriveableType extends InfoType
 	/** Recipe parts associated to each driveable part */
 	public HashMap<EnumDriveablePart, ItemStack[]> partwiseRecipe = new HashMap<EnumDriveablePart, ItemStack[]>();
 	/** Recipe parts as one complete list */
-	public ArrayList<ItemStack> recipe = new ArrayList<ItemStack>();
+	public ArrayList<ItemStack> driveableRecipe = new ArrayList<ItemStack>();
 	
 	//Ammo
 	/** If true, then all ammo is accepted. Default is true to minimise backwards compatibility issues */
@@ -87,6 +91,8 @@ public abstract class DriveableType extends InfoType
 	public float yOffset = 10F / 16F;
 	/** Third person render distance */
 	public float cameraDistance = 5F;
+	/** A list of ambient particle emitters on this vehicle */
+	public ArrayList<ParticleEmitter> emitters = new ArrayList<ParticleEmitter>();
 	
 	//Movement variables
 	/** Generic movement modifiers, no longer repeated for plane and vehicle */
@@ -100,8 +106,11 @@ public abstract class DriveableType extends InfoType
 	public float wheelSpringStrength = 0.5F;
 	/** The wheel radius for onGround checks */
 	public float wheelStepHeight = 1.0F;
+	/** Whether or not the vehicle rolls */
+	public boolean canRoll = false;
 	/** */
-	public float turretRotationSpeed = 1F;
+	public float turretRotationSpeed = 2.5F;
+	
 	
 	/** Collision points for block based collisions */
 	public ArrayList<DriveablePosition> collisionPoints = new ArrayList<DriveablePosition>();
@@ -129,6 +138,9 @@ public abstract class DriveableType extends InfoType
 	public int startSoundLength;
 	public String engineSound;
 	public int engineSoundLength;
+	
+	/**Track animation frames */
+	public int animFrames = 0;
 
 	
 	public static ArrayList<DriveableType> types = new ArrayList<DriveableType>();
@@ -181,6 +193,12 @@ public abstract class DriveableType extends InfoType
 	}
 	
 	@Override
+	public void postRead(TypeFile file)
+	{
+		super.postRead(file);
+	}
+	
+	@Override
 	protected void read(String[] split, TypeFile file)
 	{
 		super.read(split, file);
@@ -188,10 +206,7 @@ public abstract class DriveableType extends InfoType
 		{
 			if(FMLCommonHandler.instance().getSide().isClient() && split[0].equals("Model"))
 				model = FlansMod.proxy.loadModel(split[1], shortName, ModelDriveable.class);
-			
-			else if(split[0].equals("Texture"))
-				texture = split[1];
-			
+						
 			//Movement Variables
 			else if(split[0].equals("MaxThrottle"))
 				maxThrottle = Float.parseFloat(split[1]);
@@ -205,6 +220,8 @@ public abstract class DriveableType extends InfoType
 				collisionPoints.add(new DriveablePosition(split));
 			if(split[0].equals("TurretRotationSpeed"))
 				turretRotationSpeed = Float.parseFloat(split[1]);
+			else if(split[0].equals("CanRoll"))
+				canRoll = Boolean.parseBoolean(split[1]);
 			//Boats
 			else if(split[0].equals("PlaceableOnLand"))
 				placeableOnLand = Boolean.parseBoolean(split[1]);
@@ -280,6 +297,8 @@ public abstract class DriveableType extends InfoType
 				numMissileSlots = Integer.parseInt(split[1]);
 			else if(split[0].equals("FuelTankSize"))
 				fuelTankSize = Integer.parseInt(split[1]);
+			else if(split[0].equals("TrackFrames"))
+				animFrames = Integer.parseInt(split[1])-1;
 			
 			else if(split[0].equals("BulletDetection"))
 				bulletDetectionRadius = Integer.parseInt(split[1]);
@@ -334,7 +353,7 @@ public abstract class DriveableType extends InfoType
 				PilotGun pilotGun = (PilotGun)getShootPoint(split);
 				shootPointsSecondary.add(pilotGun);
 				pilotGuns.add(pilotGun);
-				recipe.add(new ItemStack(pilotGun.type.item));
+				driveableRecipe.add(new ItemStack(pilotGun.type.item));
 			}
 			else if(split[0].equals("BombPosition"))
 			{
@@ -363,7 +382,7 @@ public abstract class DriveableType extends InfoType
 					String itemName = damaged ? split[2 * i + 3].split("\\.")[0] : split[2 * i + 3];
 					int damage = damaged ? Integer.parseInt(split[2 * i + 3].split("\\.")[1]) : 0;
 					stacks[i] = getRecipeElement(itemName, amount, damage, shortName);
-					recipe.add(stacks[i]);
+					driveableRecipe.add(stacks[i]);
 				}
 				partwiseRecipe.put(part, stacks);
 			}
@@ -383,7 +402,7 @@ public abstract class DriveableType extends InfoType
 					FlansMod.log("Failed to find dye colour : " + split[2] + " while adding " + file.name);
 					return;
 				}
-				recipe.add(new ItemStack(Items.dye, amount, damage));
+				driveableRecipe.add(new ItemStack(Items.dye, amount, damage));
 			}
 			
 			
@@ -407,10 +426,43 @@ public abstract class DriveableType extends InfoType
 			{
 				seats[0].rotatedOffset = new Vector3f(Integer.parseInt(split[1]) / 16F, Integer.parseInt(split[2]) / 16F, Integer.parseInt(split[3]) / 16F);
 			}
+			else if(split[0].equals("DriverAimSpeed"))
+			{
+				seats[0].aimingSpeed = new Vector3f(Float.parseFloat(split[1]), Float.parseFloat(split[2]), Float.parseFloat(split[3]));
+			}
 			else if(split[0].equals("RotatedPassengerOffset"))
 			{
 				seats[Integer.parseInt(split[1])].rotatedOffset = new Vector3f(Integer.parseInt(split[2]) / 16F, Integer.parseInt(split[3]) / 16F, Integer.parseInt(split[4]) / 16F);
 			}
+			else if(split[0].equals("PassengerAimSpeed"))
+			{
+				seats[Integer.parseInt(split[1])].aimingSpeed = new Vector3f(Float.parseFloat(split[2]), Float.parseFloat(split[3]), Float.parseFloat(split[4]));
+			}
+			else if(split[0].equals("DriverLegacyAiming")){
+				seats[0].legacyAiming = Boolean.parseBoolean(split[1]);
+			}
+			else if(split[0].equals("PassengerLegacyAiming")){
+				seats[Integer.parseInt(split[1])].legacyAiming = Boolean.parseBoolean(split[2]);
+			}
+			else if(split[0].equals("DriverYawBeforePitch")){
+				seats[0].yawBeforePitch = Boolean.parseBoolean(split[1]);
+			}
+			else if(split[0].equals("PassengerYawBeforePitch")){
+				seats[Integer.parseInt(split[1])].yawBeforePitch = Boolean.parseBoolean(split[2]);
+			}
+			else if(split[0].equals("DriverLatePitch")){
+				seats[0].latePitch = Boolean.parseBoolean(split[1]);
+			}
+			else if(split[0].equals("PassengerLatePitch")){
+				seats[Integer.parseInt(split[1])].latePitch = Boolean.parseBoolean(split[2]);
+			}
+			else if(split[0].equals("DriverTraverseSounds")){
+				seats[0].traverseSounds = Boolean.parseBoolean(split[1]);
+			}
+			else if(split[0].equals("PassengerTraverseSounds")){
+				seats[Integer.parseInt(split[1])].traverseSounds = Boolean.parseBoolean(split[2]);
+			}
+			
 			
 			//Passengers / Gunner Seats
 			else if(split[0].equals("Passenger"))
@@ -420,7 +472,7 @@ public abstract class DriveableType extends InfoType
 				if(seat.gunType != null)
 				{
 					seat.gunnerID = numPassengerGunners++;
-					recipe.add(new ItemStack(seat.gunType.item));
+					driveableRecipe.add(new ItemStack(seat.gunType.item));
 				}
 			}
 			else if(split[0].equals("GunOrigin"))
@@ -438,6 +490,14 @@ public abstract class DriveableType extends InfoType
 				startSoundLength = Integer.parseInt(split[1]);
 			else if(split[0].equals("EngineSoundLength"))
 				engineSoundLength = Integer.parseInt(split[1]);
+			else if(split[0].equals("YawSoundLength"))
+				seats[0].yawSoundLength = Integer.parseInt(split[1]);
+			else if(split[0].equals("PitchSoundLength"))
+				seats[0].pitchSoundLength = Integer.parseInt(split[1]);
+			else if(split[0].equals("PassengerYawSoundLength"))
+				seats[Integer.parseInt(split[1])].yawSoundLength = Integer.parseInt(split[2]);
+			else if(split[0].equals("PassengerPitchSoundLength"))
+				seats[Integer.parseInt(split[1])].pitchSoundLength = Integer.parseInt(split[2]);
 			else if(split[0].equals("StartSound"))
 			{
 				startSound = split[1];
@@ -446,6 +506,26 @@ public abstract class DriveableType extends InfoType
 			else if(split[0].equals("EngineSound"))
 			{
 				engineSound = split[1];
+				FlansMod.proxy.loadSound(contentPack, "driveables", split[1]);
+			}
+			else if(split[0].equals("YawSound"))
+			{
+				seats[0].yawSound = split[1];
+				FlansMod.proxy.loadSound(contentPack, "driveables", split[1]);
+			}
+			else if(split[0].equals("PitchSound"))
+			{
+				seats[0].pitchSound = split[1];
+				FlansMod.proxy.loadSound(contentPack, "driveables", split[1]);
+			}
+			else if(split[0].equals("PassengerYawSound"))
+			{
+				seats[Integer.parseInt(split[1])].yawSound = split[2];
+				FlansMod.proxy.loadSound(contentPack, "driveables", split[1]);
+			}
+			else if(split[0].equals("PassengerPitchSound"))
+			{
+				seats[Integer.parseInt(split[1])].pitchSound = split[2];
 				FlansMod.proxy.loadSound(contentPack, "driveables", split[1]);
 			}
 			else if(split[0].equals("ShootMainSound") || split[0].equals("ShootSoundPrimary") || split[0].equals("ShellSound") || split[0].equals("BombSound"))
@@ -461,6 +541,26 @@ public abstract class DriveableType extends InfoType
 			// ICBM Mod Radar
 			else if(split[0].equals("OnRadar"))
 				onRadar = split[1].equals("True");
+			
+			else if(split[0].equalsIgnoreCase("AddParticle") || split[0].equalsIgnoreCase("AddEmitter"))
+			{
+				ParticleEmitter emitter = new ParticleEmitter();
+				emitter.effectType = FlansMod.getParticleType(split[1]);
+				emitter.emitRate = Integer.parseInt(split[2]);
+				emitter.origin = new Vector3f(split[3], shortName);
+				emitter.extents = new Vector3f(split[4], shortName);
+				emitter.velocity = new Vector3f(split[5], shortName);
+				emitter.minThrottle = Float.parseFloat(split[6]);
+				emitter.maxThrottle = Float.parseFloat(split[7]);
+				emitter.minHealth = Float.parseFloat(split[8]);
+				emitter.maxHealth = Float.parseFloat(split[9]);
+				emitter.part = split[10];
+				//Scale from model coords to world coords
+				emitter.origin.scale(1.0f / 16.0f);
+				emitter.extents.scale(1.0f / 16.0f);
+				emitter.velocity.scale(1.0f / 16.0f);
+				emitters.add(emitter);
+			}
 		}
 		catch (Exception e)
 		{
@@ -573,5 +673,42 @@ public abstract class DriveableType extends InfoType
 	public void addDungeonLoot() 
 	{
 		//Do not add vehicles to dungeon chests. That would be so op.
+	}
+	
+	public class ParticleEmitter
+	{
+		/** The name of the effect */
+		public EnumParticleTypes effectType;
+		/** The rate of emission */
+		public int emitRate;
+		/** The centre of the effect emitter */
+		public Vector3f origin;
+		/** The size of the box in which it emits */
+		public Vector3f extents;
+		/** The velocity of the particle */
+		public Vector3f velocity;
+		/** Lower throttle bound */
+		public float minThrottle;
+		/** Upper throttle bound */
+		public float maxThrottle;
+		/** Model part the emitter is bound to */
+		public String part;
+		/** Minimum health for the emitter to work */
+		public float minHealth;
+		/** Maximum health for the emitter to work */
+		public float maxHealth;
+	}
+	
+	@Override
+	@SideOnly(Side.CLIENT)
+	public ModelBase GetModel()
+	{
+		return model;
+	}
+	
+	@Override
+	public float GetRecommendedScale()
+	{
+		return 100.0f / cameraDistance;
 	}
 }

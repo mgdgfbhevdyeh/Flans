@@ -11,6 +11,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Random;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
@@ -21,15 +22,20 @@ import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.monster.EntitySkeleton;
 import net.minecraft.entity.monster.EntityZombie;
 import net.minecraft.init.Items;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.ForgeChunkManager;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
 import net.minecraftforge.event.entity.living.LivingSpawnEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraftforge.event.entity.player.PlayerDropsEvent;
+import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.fml.client.event.ConfigChangedEvent;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
@@ -77,6 +83,8 @@ import com.flansmod.common.guns.ItemGun;
 import com.flansmod.common.guns.boxes.BlockGunBox;
 import com.flansmod.common.guns.boxes.GunBoxType;
 import com.flansmod.common.network.PacketHandler;
+import com.flansmod.common.paintjob.BlockPaintjobTable;
+import com.flansmod.common.paintjob.TileEntityPaintjobTable;
 import com.flansmod.common.parts.ItemPart;
 import com.flansmod.common.parts.PartType;
 import com.flansmod.common.teams.ArmourBoxType;
@@ -91,10 +99,13 @@ import com.flansmod.common.teams.EntityGunItem;
 import com.flansmod.common.teams.EntityTeamItem;
 import com.flansmod.common.teams.ItemFlagpole;
 import com.flansmod.common.teams.ItemOpStick;
+import com.flansmod.common.teams.ItemRewardBox;
 import com.flansmod.common.teams.ItemTeamArmour;
 import com.flansmod.common.teams.PlayerClass;
+import com.flansmod.common.teams.RewardBox;
 import com.flansmod.common.teams.Team;
 import com.flansmod.common.teams.TeamsManager;
+import com.flansmod.common.teams.TeamsManagerRanked;
 import com.flansmod.common.teams.TileEntitySpawner;
 import com.flansmod.common.tools.EntityParachute;
 import com.flansmod.common.tools.ItemTool;
@@ -114,12 +125,7 @@ public class FlansMod
 	public static final String VERSION = "@VERSION@";
 	@Instance(MODID)
 	public static FlansMod INSTANCE;
-	public static int generalConfigInteger = 32;
-	public static String generalConfigString = "Hello!";
-	public static boolean addGunpowderRecipe = true;
-	public static int teamsConfigInteger = 32;
-	public static String teamsConfigString = "Hello!";
-	public static boolean teamsConfigBoolean = false;
+
 	@SidedProxy(clientSide = "com.flansmod.client.ClientProxy", serverSide = "com.flansmod.common.CommonProxy")
 	public static CommonProxy proxy;
 	//A standardised ticker for all bits of the mod to call upon if they need one
@@ -131,6 +137,8 @@ public class FlansMod
 	public static final int numPlayerSnapshots = 20;
 	public static boolean isApocalypseLoaded = false;
 	public static boolean addAllPaintjobsToCreative = false;
+	public static boolean addGunpowderRecipe = true;
+	public static boolean shootOnRightClick = false;
 	
 	public static float armourSpawnRate = 0.25F;
 	
@@ -142,7 +150,7 @@ public class FlansMod
 	//Handlers
 	public static final PacketHandler packetHandler = new PacketHandler();
 	public static final PlayerHandler playerHandler = new PlayerHandler();
-	public static final TeamsManager teamsManager = new TeamsManager();
+	public static final TeamsManager teamsManager = new TeamsManagerRanked();
 	public static final CommonTickHandler tickHandler = new CommonTickHandler();
 	public static FlansHooks hooks = new FlansHooks();
 	
@@ -157,6 +165,13 @@ public class FlansMod
 	public static ArrayList<ItemTeamArmour> armourItems = new ArrayList<ItemTeamArmour>();
 	public static CreativeTabFlan tabFlanGuns = new CreativeTabFlan(0), tabFlanDriveables = new CreativeTabFlan(1),
 			tabFlanParts = new CreativeTabFlan(2), tabFlanTeams = new CreativeTabFlan(3), tabFlanMechas = new CreativeTabFlan(4);
+	
+	/** Custom paintjob item */
+	public static Item rainbowPaintcan;
+	public static BlockPaintjobTable paintjobTable;
+	
+	private static Random rewardsRandom = new Random();
+	public static float Pick(float totalWeight) { return rewardsRandom.nextFloat() * totalWeight; }
 
 	/** The mod pre-initialiser method */
 	@EventHandler
@@ -202,7 +217,12 @@ public class FlansMod
 		spawner = (BlockSpawner)(new BlockSpawner(Material.iron).setUnlocalizedName("teamsSpawner").setBlockUnbreakable().setResistance(1000000F));
 		GameRegistry.registerBlock(spawner, ItemBlockManyNames.class, "teamsSpawner");
 		GameRegistry.registerTileEntity(TileEntitySpawner.class, "teamsSpawner");
-				
+		
+		rainbowPaintcan = new Item().setUnlocalizedName("rainbowPaintcan").setCreativeTab(tabFlanGuns);
+		GameRegistry.registerItem(rainbowPaintcan, "rainbowPaintcan", MODID);
+		paintjobTable = new BlockPaintjobTable();
+		GameRegistry.registerBlock(paintjobTable, "paintjobTable");
+		GameRegistry.registerTileEntity(TileEntityPaintjobTable.class, MODID);
 		
 		GameRegistry.registerTileEntity(TileEntityItemHolder.class, "itemHolder");
 		
@@ -231,7 +251,7 @@ public class FlansMod
 		NetworkRegistry.INSTANCE.registerGuiHandler(this, new CommonGuiHandler());		
 		
 		// Recipes
-		for (InfoType type : InfoType.infoTypes)
+		for (InfoType type : InfoType.infoTypes.values())
 		{
 			type.addRecipe();
 			type.addDungeonLoot();
@@ -242,6 +262,17 @@ public class FlansMod
 			GameRegistry.addShapelessRecipe(new ItemStack(Items.gunpowder), charcoal, charcoal, charcoal, new ItemStack(Items.glowstone_dust));
 		}
 		log("Loaded recipes.");
+		
+		// Really randomise the rewards generator
+		rewardsRandom = new Random();
+		rewardsRandom.setSeed(System.currentTimeMillis() ^ 0x5AB49DE08DE3B1DFl);
+		for(int i = 0; i < 10; i++)
+		{
+			for(int j = 0; j < rewardsRandom.nextInt(10); j++)
+			{
+				rewardsRandom.nextGaussian();
+			}
+		}
 		
 		//Register teams mod entities
 		EntityRegistry.registerGlobalEntityID(EntityFlagpole.class, "Flagpole", EntityRegistry.findGlobalUniqueEntityId());
@@ -261,7 +292,7 @@ public class FlansMod
 		EntityRegistry.registerGlobalEntityID(EntityVehicle.class, "Vehicle", EntityRegistry.findGlobalUniqueEntityId());
 		EntityRegistry.registerModEntity(EntityVehicle.class, "Vehicle", 95, this, 250, 10, false);
 		EntityRegistry.registerGlobalEntityID(EntitySeat.class, "Seat", EntityRegistry.findGlobalUniqueEntityId());
-		EntityRegistry.registerModEntity(EntitySeat.class, "Seat", 99, this, 250, 1000, false);
+		EntityRegistry.registerModEntity(EntitySeat.class, "Seat", 99, this, 250, 10, false);
 		EntityRegistry.registerGlobalEntityID(EntityWheel.class, "Wheel", EntityRegistry.findGlobalUniqueEntityId());
 		EntityRegistry.registerModEntity(EntityWheel.class, "Wheel", 103, this, 250, 20, false);
 		EntityRegistry.registerGlobalEntityID(EntityParachute.class, "Parachute", EntityRegistry.findGlobalUniqueEntityId());
@@ -287,6 +318,7 @@ public class FlansMod
 
 		//Config
 		FMLCommonHandler.instance().bus().register(INSTANCE);
+		MinecraftForge.EVENT_BUS.register(INSTANCE);
 		//Starting the EventListener
 		new PlayerDeathEventListener();
 		log("Loading complete.");
@@ -299,12 +331,6 @@ public class FlansMod
 		packetHandler.postInitialise();
 		
 		hooks.hook();
-				
-		/* TODO : ICBM
-		isICBMSentryLoaded = Loader.instance().isModLoaded("ICBM|Sentry");
-		
-		log("ICBM hooking complete.");
-		*/
 	}
 	
 	@SubscribeEvent
@@ -339,6 +365,17 @@ public class FlansMod
 	public void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent eventArgs) {
 		if(eventArgs.modID.equals(MODID))
 			syncConfig();
+	}
+	
+	@SubscribeEvent
+	public void onBlockBreak(BlockEvent.BreakEvent event)
+	{
+		if(event.getPlayer() != null
+				&& event.getPlayer().getCurrentEquippedItem() != null
+				&& event.getPlayer().getCurrentEquippedItem().getItem() instanceof ItemGun)
+		{
+			event.setCanceled(true);
+		}
 	}
 
 	@SubscribeEvent
@@ -384,6 +421,15 @@ public class FlansMod
 		}
 		
 		tickHandler.onEntitySpawn(event);
+	}
+
+	@SubscribeEvent
+	public void onAttackEntity(AttackEntityEvent event)
+	{
+		if(event.entity instanceof EntityGunItem)
+		{
+			event.setCanceled(true);
+		}
 	}
 	
 	/** Reads type files from all content packs */
@@ -538,6 +584,8 @@ public class FlansMod
 					case playerClass : 	break;
 					case team : 		break;
 					case itemHolder:	new BlockItemHolder((ItemHolderType)infoType); break;
+					case rewardBox:		new ItemRewardBox((RewardBox)infoType).setUnlocalizedName(infoType.shortName); break;
+					case loadout:		break;
 					default : log("Unrecognised type for " + infoType.shortName); break;
 					}
 				}
@@ -560,11 +608,10 @@ public class FlansMod
 		return INSTANCE.packetHandler;
 	}
 
-	public static void syncConfig() {
-		//generalConfigInteger = configFile.getInt("Config Integer", Configuration.CATEGORY_GENERAL, generalConfigInteger, 0, Integer.MAX_VALUE, "An Integer!");
-		//generalConfigString = configFile.getString("Config String", Configuration.CATEGORY_GENERAL, generalConfigString, "A String!");
+	public static void syncConfig() 
+	{
 		addGunpowderRecipe = configFile.getBoolean("Gunpowder Recipe", Configuration.CATEGORY_GENERAL, addGunpowderRecipe, "Whether or not to add the extra gunpowder recipe (3 charcoal + 1 lightstone)");
-
+		shootOnRightClick = configFile.getBoolean("ShootOnRightClick", Configuration.CATEGORY_GENERAL, shootOnRightClick, "If true, then shoot will be on right click");
 		addAllPaintjobsToCreative = configFile.getBoolean("Add All Paintjobs to Creative", Configuration.CATEGORY_GENERAL, addAllPaintjobsToCreative, "Whether all paintjobs should appear in creative");
 
 		if(configFile.hasChanged())
@@ -575,5 +622,56 @@ public class FlansMod
 	public static void log(String string) 
 	{
 		System.out.println("[Flan's Mod] " + string);
+	}
+
+	public static void Assert(boolean b, String string)
+	{
+		if(!b)
+		{
+			log(string);
+		}
+	}
+	
+	public static EnumParticleTypes getParticleType(String s)
+	{
+		if(s.equals("hugeexplosion")) 		return EnumParticleTypes.EXPLOSION_HUGE;
+		else if(s.equals("largeexplode"))	return EnumParticleTypes.EXPLOSION_LARGE;
+		else if(s.equals("explode"))		return EnumParticleTypes.EXPLOSION_NORMAL;
+		else if(s.equals("fireworksSpark"))	return EnumParticleTypes.FIREWORKS_SPARK;
+		else if(s.equals("bubble"))			return EnumParticleTypes.WATER_BUBBLE;
+		else if(s.equals("splash"))			return EnumParticleTypes.WATER_SPLASH;
+		else if(s.equals("wake"))			return EnumParticleTypes.WATER_WAKE;
+		else if(s.equals("drop"))			return EnumParticleTypes.WATER_DROP;
+		else if(s.equals("suspended"))		return EnumParticleTypes.SUSPENDED;
+		else if(s.equals("depthsuspend"))	return EnumParticleTypes.SUSPENDED_DEPTH;
+		else if(s.equals("townaura"))		return EnumParticleTypes.TOWN_AURA;
+		else if(s.equals("crit"))			return EnumParticleTypes.CRIT;
+		else if(s.equals("magicCrit"))		return EnumParticleTypes.CRIT_MAGIC;
+		else if(s.equals("smoke"))			return EnumParticleTypes.SMOKE_NORMAL;
+		else if(s.equals("largesmoke"))		return EnumParticleTypes.SMOKE_LARGE;
+		else if(s.equals("spell"))			return EnumParticleTypes.SPELL;
+		else if(s.equals("instantSpell"))	return EnumParticleTypes.SPELL_INSTANT;
+		else if(s.equals("mobSpell"))		return EnumParticleTypes.SPELL_MOB;
+		else if(s.equals("mobSpellAmbient"))return EnumParticleTypes.SPELL_MOB_AMBIENT;
+		else if(s.equals("witchMagic"))		return EnumParticleTypes.SPELL_WITCH;
+		else if(s.equals("dripWater"))		return EnumParticleTypes.DRIP_WATER;
+		else if(s.equals("dripLava"))		return EnumParticleTypes.DRIP_LAVA;
+		else if(s.equals("angryVillager"))	return EnumParticleTypes.VILLAGER_ANGRY;
+		else if(s.equals("happyVillager"))	return EnumParticleTypes.VILLAGER_HAPPY;
+		else if(s.equals("note"))			return EnumParticleTypes.NOTE;
+		else if(s.equals("portal"))			return EnumParticleTypes.PORTAL;
+		else if(s.equals("enchantmenttable"))return EnumParticleTypes.ENCHANTMENT_TABLE;
+		else if(s.equals("flame"))			return EnumParticleTypes.FLAME;
+		else if(s.equals("lava"))			return EnumParticleTypes.LAVA;
+		else if(s.equals("footstep"))		return EnumParticleTypes.FOOTSTEP;
+		else if(s.equals("cloud"))			return EnumParticleTypes.CLOUD;
+		else if(s.equals("reddust"))		return EnumParticleTypes.REDSTONE;
+		else if(s.equals("snowballpoof"))	return EnumParticleTypes.SNOWBALL;
+		else if(s.equals("snowshovel"))		return EnumParticleTypes.SNOW_SHOVEL;
+		else if(s.equals("slime"))			return EnumParticleTypes.SLIME;
+		else if(s.equals("heart"))			return EnumParticleTypes.HEART;
+		else if(s.equals("barrier"))		return EnumParticleTypes.BARRIER;
+		
+		return EnumParticleTypes.WATER_BUBBLE;
 	}
 }

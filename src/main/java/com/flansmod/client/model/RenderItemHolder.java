@@ -17,10 +17,10 @@ import net.minecraft.util.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.IBlockAccess;
-import net.minecraftforge.client.IItemRenderer.ItemRenderType;
 
 import com.flansmod.client.ClientProxy;
 import com.flansmod.client.FlansModResourceHandler;
+import com.flansmod.client.model.RenderGun.GunRenderType;
 import com.flansmod.client.model.apocalypse.ModelGroundSkeleton;
 import com.flansmod.common.BlockItemHolder;
 import com.flansmod.common.ItemHolderType;
@@ -50,21 +50,23 @@ public class RenderItemHolder extends TileEntitySpecialRenderer
 	        
 	        switch(EnumFacing.HORIZONTALS[holder.getBlockMetadata()])
 	        {
-			case NORTH:
-				GlStateManager.translate(-1F, 0F, 0F);
-				GlStateManager.rotate(0F, 0F, 1F, 0F);
-				break;
-			case EAST:
-				GlStateManager.translate(-1F, 0F, 1F);
-				GlStateManager.rotate(90F, 0F, 1F, 0F);
-				break;
-			case SOUTH:
-				GlStateManager.translate(0F, 0F, 1F);
-				GlStateManager.rotate(180F, 0F, 1F, 0F);
-				break;
-			case WEST:
-				GlStateManager.rotate(270F, 0F, 1F, 0F);
-				break;  
+				case NORTH:
+					GlStateManager.translate(-1F, 0F, 0F);
+					GlStateManager.rotate(0F, 0F, 1F, 0F);
+					break;
+				case EAST:
+					GlStateManager.translate(-1F, 0F, 1F);
+					GlStateManager.rotate(90F, 0F, 1F, 0F);
+					break;
+				case SOUTH:
+					GlStateManager.translate(0F, 0F, 1F);
+					GlStateManager.rotate(180F, 0F, 1F, 0F);
+					break;
+				case WEST:
+					GlStateManager.rotate(270F, 0F, 1F, 0F);
+					break;  
+				default:
+					break;
 	        }
 	        
 	        model.render();
@@ -80,11 +82,11 @@ public class RenderItemHolder extends TileEntitySpecialRenderer
 		        GlStateManager.rotate(model.itemRotation.z, 0F, 0F, 1F);
 		        GlStateManager.rotate(model.itemRotation.y, 0F, 1F, 0F);
 		       
-		        if(stack.getItem() instanceof ItemGun && ((ItemGun)stack.getItem()).type.model != null)
+		        if(stack.getItem() instanceof ItemGun && ((ItemGun)stack.getItem()).GetType().model != null)
 		        {
-		        	ClientProxy.gunRenderer.renderItem(ItemRenderType.ENTITY, stack);		        			
+		        	ClientProxy.gunRenderer.renderItem(GunRenderType.ENTITY, stack);		        			
 		        }
-		        else Minecraft.getMinecraft().getRenderItem().renderItemModel(stack);
+		        else Minecraft.getMinecraft().getRenderItem().renderItem(stack, TransformType.GROUND);
 			}
 	        
 	        GlStateManager.popMatrix();

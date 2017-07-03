@@ -3,6 +3,7 @@ package com.flansmod.common.teams;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.MinecraftServer;
@@ -10,6 +11,7 @@ import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.EnumChatFormatting;
 
 import com.flansmod.common.FlansMod;
+import com.mojang.authlib.GameProfile;
 
 public class CommandTeams extends CommandBase 
 {
@@ -17,13 +19,13 @@ public class CommandTeams extends CommandBase
 	public static TeamsManager teamsManager = TeamsManager.getInstance();
 
 	@Override
-	public String getName() 
+	public String getCommandName() 
 	{
 		return "teams";
 	}
 	
 	@Override
-	public void execute(ICommandSender sender, String[] split) throws CommandException 
+	public void processCommand(ICommandSender sender, String[] split) throws CommandException 
 	{
 		if(teamsManager == null)
 		{
@@ -88,6 +90,21 @@ public class CommandTeams extends CommandBase
 			teamsManager.vehiclesNeedFuel = false;
 			teamsManager.mgLife = teamsManager.planeLife = teamsManager.vehicleLife = teamsManager.aaLife = teamsManager.mechaLove = 120;
 			TeamsManager.messageAll("Flan's Mod switching to arena mode presets");
+			return;
+		}
+		if(split[0].equals("motd"))
+		{
+			teamsManager.motd = "";
+			for(int i = 0; i < split.length - 1; i++)
+			{
+				teamsManager.motd += split[i + 1];
+				if(i != split.length - 2)
+				{
+					teamsManager.motd += " ";
+				}
+			}
+			sender.addChatMessage(new ChatComponentText("Server message of the day is now:"));
+			sender.addChatMessage(new ChatComponentText(teamsManager.motd));
 			return;
 		}
 		if(split[0].equals("listGametypes"))
@@ -652,6 +669,17 @@ public class CommandTeams extends CommandBase
 			sender.addChatMessage(new ChatComponentText("Score summary menu will appear for " + TeamsManager.scoreDisplayTime / 20 + " seconds"));
 			return;
 		}
+		if(split[0].equals("rankUpdateTime"))
+		{
+			if(split.length != 2)
+			{
+				sender.addChatMessage(new ChatComponentText("Incorrect Usage : Should be /teams " + split[0] + " <time>"));	
+				return;
+			}
+			TeamsManager.rankUpdateTime = Integer.parseInt(split[1]) * 20;
+			sender.addChatMessage(new ChatComponentText("Rank update menu will appear for " + TeamsManager.rankUpdateTime / 20 + " seconds"));
+			return;
+		}
 		if(split[0].equals("votingTime"))
 		{
 			if(split.length != 2)
@@ -691,6 +719,76 @@ public class CommandTeams extends CommandBase
 			else sender.addChatMessage(new ChatComponentText("Variable " + split[1] + " did not exist in gametype " + TeamsManager.getInstance().currentRound.gametype.shortName));
 			return;
 		}
+		if(split[0].toLowerCase().equals("setloadoutpool"))
+		{
+			LoadoutPool pool = LoadoutPool.GetPool(split[1]);
+			if(pool != null)
+			{
+				TeamsManagerRanked.GetInstance().currentPool = pool;
+				sender.addChatMessage(new ChatComponentText("Loadout pool set to " + split[1]));	
+			}
+			else
+			{
+				sender.addChatMessage(new ChatComponentText("No such loadout pool"));	
+			} 
+				
+			return;
+		}
+		if(split[0].toLowerCase().equals("go"))
+		{
+			TeamsManagerRanked.GetInstance().currentPool = LoadoutPool.GetPool("modernLoadout");
+			teamsManager.start();
+			return;
+		}
+		if(split[0].toLowerCase().equals("xp"))
+		{
+			sender.addChatMessage(new ChatComponentText("Awarded " + Integer.parseInt(split[1]) + " XP"));	
+			TeamsManagerRanked.AwardXP((EntityPlayerMP)sender, Integer.parseInt(split[1]));
+			return;
+		}
+		if(split[0].toLowerCase().equals("resetrank"))
+		{
+			sender.addChatMessage(new ChatComponentText("Reset your rank"));	
+			TeamsManagerRanked.ResetRank((EntityPlayerMP)sender);
+			return;
+		}
+		if(split[0].toLowerCase().equals("giverewardbox"))
+		{
+			String name = split[1];
+			RewardBox box = RewardBox.GetRewardBox(split[2]);
+			if(box == null)
+			{
+				sender.addChatMessage(new ChatComponentText("Invalid box"));	
+				return;
+			}
+			
+			GameProfile profile = MinecraftServer.getServer().getPlayerProfileCache().getGameProfileForUsername(name);
+			if(profile != null)
+			{
+				RewardBoxInstance instance = RewardBoxInstance.CreateCheatReward(box, name);
+				PlayerRankData data = TeamsManagerRanked.GetRankData(profile.getId());
+				if(data != null)
+				{
+					data.AddRewardBoxInstance(instance);
+				}
+			}
+			return;
+		}
+		if(split[0].toLowerCase().equals("xpmultiplier"))
+		{
+			float target = Float.parseFloat(split[1]);
+			if(target < 0.5f || target > 2.0f)
+			{
+				sender.addChatMessage(new ChatComponentText("Not going to allow that for now. Keep it within 0.5 to 2.0"));
+			}
+			else
+			{
+				sender.addChatMessage(new ChatComponentText("XP multiplier is now " + target));
+				TeamsManagerRanked.GetInstance().XPMultiplier = target;
+			}
+			return;
+		}
+		
 		sender.addChatMessage(new ChatComponentText(split[0] + " is not a valid teams command. Try /teams help"));
 	}
 	

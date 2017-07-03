@@ -13,6 +13,7 @@ import com.flansmod.common.guns.GunType;
 import com.flansmod.common.guns.ItemGun;
 import com.flansmod.common.guns.raytracing.PlayerSnapshot;
 import com.flansmod.common.network.PacketSelectOffHandGun;
+import com.flansmod.common.teams.IPlayerClass;
 import com.flansmod.common.teams.ItemTeamArmour;
 import com.flansmod.common.teams.PlayerClass;
 import com.flansmod.common.teams.Team;
@@ -41,16 +42,10 @@ public class PlayerData
 	public ItemStack offHandGunStack;
 	/** The MG this player is using */
 	public EntityMG mountingGun;
-	/** Tickers to stop shooting too fast */
-	public int shootTimeRight, shootTimeLeft;
 	/** Stops player shooting immediately after swapping weapons */
 	public int shootClickDelay;
-	/** True if this player is shooting */
-	public boolean isShootingRight, isShootingLeft;
 	/** The speed of the minigun the player is using */
 	public float minigunSpeed = 0F;
-	/** Reloading booleans */
-	public boolean reloadingRight, reloadingLeft;
 	/** When remote explosives are thrown they are added to this list. When the player uses a remote, the first one from this list detonates */
 	public ArrayList<EntityGrenade> remoteExplosives = new ArrayList<EntityGrenade>();
 	/** Sound delay parameters */
@@ -59,8 +54,22 @@ public class PlayerData
 	public boolean shouldPlayCooldownSound, shouldPlayWarmupSound;
 	/** Melee weapon custom hit simulation */
 	public int meleeProgress, meleeLength;
+	
+	/** Tickers to stop shooting too fast */
+	public float shootTimeRight, shootTimeLeft;
+	/** True if this player is shooting */
+	public boolean isShootingRight, isShootingLeft;
+	/** Reloading booleans */
+	public boolean reloadingRight, reloadingLeft;
 	/** When the player shoots a burst fire weapon, one shot is fired immediately and this counter keeps track of how many more should be fired */
 	public int burstRoundsRemainingLeft = 0, burstRoundsRemainingRight = 0;
+	
+	// Handed getters and setters
+	public float GetShootTime(boolean bOffHand) { return bOffHand ? shootTimeLeft : shootTimeRight; }
+	public void SetShootTime(boolean bOffHand, float set) { if(bOffHand) shootTimeLeft = set; else shootTimeRight = set; }
+
+	public int GetBurstRoundsRemaining(boolean bOffHand) { return bOffHand ? burstRoundsRemainingLeft : burstRoundsRemainingRight; }
+	public void SetBurstRoundsRemaining(boolean bOffHand, int set) { if(bOffHand) burstRoundsRemainingLeft = set; else burstRoundsRemainingRight = set; }
 	
 	public Vector3f[] lastMeleePositions;
 	
@@ -78,9 +87,9 @@ public class PlayerData
 	/** The team this player will switch to upon respawning */
 	public Team newTeam;
 	/** The class the player is currently using */
-	public PlayerClass playerClass;
+	public IPlayerClass playerClass;
 	/** The class the player will switch to upon respawning */
-	public PlayerClass newPlayerClass;
+	public IPlayerClass newPlayerClass;
 	/** Keeps the player out of having to rechose their team each round */
 	public boolean builder;
 	/** Save the player's skin here, to replace after having done a swap for a certain class override */
@@ -109,11 +118,7 @@ public class PlayerData
 		
 		if(shootClickDelay > 0)
 			shootClickDelay--;
-		
-		//Handle minigun speed
-		if(isShootingRight && !reloadingRight)
-			minigunSpeed += 2F; 
-		minigunSpeed *= 0.9F;
+
 		if(loopedSoundDelay > 0)
 		{
 			loopedSoundDelay--;
@@ -129,14 +134,17 @@ public class PlayerData
 	
 	public void clientTick(EntityPlayer player)
 	{
-		if(player.getCurrentEquippedItem() == null || !(player.getCurrentEquippedItem().getItem() instanceof ItemGun) || ((ItemGun)player.getCurrentEquippedItem().getItem()).type.oneHanded || player.getCurrentEquippedItem() == offHandGunStack)
+		if(player.getCurrentEquippedItem() == null 
+				|| !(player.getCurrentEquippedItem().getItem() instanceof ItemGun) 
+				|| ((ItemGun)player.getCurrentEquippedItem().getItem()).GetType().oneHanded 
+				|| player.getCurrentEquippedItem() == offHandGunStack)
 		{
 			//offHandGunSlot = 0;
 			offHandGunStack = null;
 		}
 	}
 
-	public PlayerClass getPlayerClass()
+	public IPlayerClass getPlayerClass()
 	{
 		if(playerClass != newPlayerClass)
 			playerClass = newPlayerClass;
@@ -175,7 +183,7 @@ public class PlayerData
 		if(stackInSlot.getItem() instanceof ItemGun)
 		{
 			ItemGun item = ((ItemGun)stackInSlot.getItem());
-			if(item.type.oneHanded)
+			if(item.GetType().oneHanded)
 				return true;
 		}
 		return false;
@@ -214,6 +222,16 @@ public class PlayerData
 			
 			lastMeleePositions[k] = new Vector3f(player.posX + nextPosInPlayerCoords.x, player.posY + nextPosInPlayerCoords.y, player.posZ + nextPosInPlayerCoords.z);
 		}
+	}
+	
+	public void WriteToFile()
+	{
+		
+	}
+	
+	public void ReadFromFile()
+	{
+		
 	}
 	
 }

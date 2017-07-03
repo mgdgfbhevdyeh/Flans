@@ -11,25 +11,28 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.flansmod.client.FlansModClient;
+import com.flansmod.common.FlansMod;
 import com.flansmod.common.PlayerData;
 import com.flansmod.common.PlayerHandler;
 import com.flansmod.common.teams.PlayerClass;
+import com.flansmod.common.teams.PlayerRankData;
 import com.flansmod.common.teams.Team;
 import com.flansmod.common.teams.TeamsManager;
+import com.flansmod.common.teams.TeamsManagerRanked;
 
 public class PacketTeamInfo extends PacketBase 
 {			
-	public static String mapShortName;
-	public static String map;
-	public static String gametype;
-	public static boolean showZombieScore;
-	public static int numTeams;
-	public static TeamData[] teamData;
-	public static boolean sortedByTeam;
-	public static int timeLeft;
-	public static int scoreLimit;
+	public String mapShortName;
+	public String map;
+	public String gametype;
+	public boolean showZombieScore;
+	public int numTeams;
+	public TeamData[] teamData;
+	public boolean sortedByTeam;
+	public int timeLeft;
+	public int scoreLimit;
 	
-	public static int numLines;
+	public int numLines;
 	
 	public static class TeamData
 	{
@@ -42,6 +45,7 @@ public class PacketTeamInfo extends PacketBase
 	
 	public static class PlayerScoreData
 	{
+		public int level;
 		public String username;
 		public int score;
 		public int kills;
@@ -121,6 +125,16 @@ public class PacketTeamInfo extends PacketBase
 							String username = team.members.get(j);
 							PlayerData playerData = PlayerHandler.getPlayerData(username, Side.SERVER);
 							writeUTF(data, username);
+							PlayerRankData rankData = TeamsManagerRanked.GetRankData(TeamsManager.getPlayer(username));
+							if(rankData == null)
+							{
+								data.writeInt(0);
+							}
+							else
+							{
+								data.writeInt(rankData.currentLevel);
+							}
+							
 							if(playerData == null)
 							{
 								data.writeInt(0);
@@ -134,7 +148,7 @@ public class PacketTeamInfo extends PacketBase
 								data.writeInt(playerData.zombieScore);
 								data.writeInt(playerData.kills);
 								data.writeInt(playerData.deaths);
-								writeUTF(data, playerData.playerClass.shortName);
+								writeUTF(data, playerData.playerClass.GetShortName());
 							}
 						}
 					}
@@ -159,16 +173,27 @@ public class PacketTeamInfo extends PacketBase
 				for (String username : playerNames) {
 					PlayerData playerData = PlayerHandler.getPlayerData(username, Side.SERVER);
 					writeUTF(data, username);
-					if (playerData == null) {
+					PlayerRankData rankData = TeamsManagerRanked.GetRankData(TeamsManager.getPlayer(username));
+					if(rankData == null)
+					{
+						data.writeInt(0);
+					}
+					else
+					{
+						data.writeInt(rankData.currentLevel);
+					}
+					if (playerData == null) 
+					{
 						data.writeInt(0);
 						data.writeInt(0);
 						data.writeInt(0);
 						writeUTF(data, "");
-					} else {
+					} else 
+					{
 						data.writeInt(playerData.score);
 						data.writeInt(playerData.kills);
 						data.writeInt(playerData.deaths);
-						writeUTF(data, playerData.playerClass.shortName);
+						writeUTF(data, playerData.playerClass.GetShortName());
 					}
 				}
 
@@ -181,6 +206,8 @@ public class PacketTeamInfo extends PacketBase
 	@Override
 	public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) 
 	{
+		try
+		{
 		TeamsManager.canBreakGlass = data.readBoolean();
 		TeamsManager.vehiclesNeedFuel = data.readBoolean();
 		TeamsManager.driveablesBreakBlocks = data.readBoolean();
@@ -200,7 +227,8 @@ public class PacketTeamInfo extends PacketBase
 			sortedByTeam = data.readBoolean();
 			if(sortedByTeam)
 			{
-				numLines = numTeams = data.readInt();
+				numTeams = data.readInt();
+				numLines = 1;
 				if(numTeams == 0)
 					return;
 				teamData = new TeamData[numTeams];
@@ -222,6 +250,7 @@ public class PacketTeamInfo extends PacketBase
 						teamData[i].playerData[j] = new PlayerScoreData();
 						teamData[i].playerData[j].team = teamData[i];
 						teamData[i].playerData[j].username = readUTF(data);
+						teamData[i].playerData[j].level = data.readInt();
 						teamData[i].playerData[j].score = data.readInt();
 						teamData[i].playerData[j].zombieScore = data.readInt();
 						teamData[i].playerData[j].kills = data.readInt();
@@ -244,6 +273,7 @@ public class PacketTeamInfo extends PacketBase
 					teamData[0].playerData[j] = new PlayerScoreData();
 					teamData[0].playerData[j].team = teamData[0];
 					teamData[0].playerData[j].username = readUTF(data);
+					teamData[0].playerData[j].level = data.readInt();
 					teamData[0].playerData[j].score = data.readInt();
 					teamData[0].playerData[j].kills = data.readInt();
 					teamData[0].playerData[j].deaths = data.readInt();
@@ -251,7 +281,13 @@ public class PacketTeamInfo extends PacketBase
 				}
 			}
 		}
-
+		}
+		catch(Exception e)
+		{
+			FlansMod.Assert(false, "Messed up in teams packet");
+			e.printStackTrace();
+			teamData = new TeamData[] { new TeamData() };
+		}
 	}
 
 	@Override
@@ -273,8 +309,23 @@ public class PacketTeamInfo extends PacketBase
 		{
 		case 0 : return null;
 		case 1 : return Team.spectators;
-		default : return teamData.length > spawnerTeamID - 2 ? teamData[spawnerTeamID - 2].team : null;
+		default : return teamData.length > spawnerTeamID - 2 && teamData[spawnerTeamID - 2] != null ? teamData[spawnerTeamID - 2].team : null;
 		}
+	}
+	
+	public Team getTeam(EntityPlayer player)
+	{
+		for(int i = 0; i < teamData.length; i++)
+		{
+			for(int j = 0; j < teamData[i].playerData.length; j++)
+			{
+				if(teamData[i].playerData[j].username.equals(player.getDisplayNameString()))
+				{
+					return teamData[i].team;
+				}
+			}
+		}
+		return null;
 	}
 	
 	public boolean roundOver()

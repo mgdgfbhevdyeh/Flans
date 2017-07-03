@@ -5,9 +5,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import net.minecraft.client.model.ModelBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.PlayerData;
@@ -161,6 +164,16 @@ public class Team extends InfoType
 		return null;
 	}
 	
+	public static Team getTeam(int iHash)
+	{
+		for(Team team : teams)
+		{
+			if(team.shortName.hashCode() == iHash)
+				return team;
+		}
+		return null;
+	}
+	
 	/*
 	//Called both by ops and the gametype
 	public void addBase(ITeamBase base)
@@ -232,5 +245,22 @@ public class Team extends InfoType
 			return dataB.score - dataA.score;
 		}
 		
+	}
+
+	@Override
+	protected void preRead(TypeFile file)
+	{
+	}
+
+	@Override
+	protected void postRead(TypeFile file)
+	{
+	}
+
+	@Override
+	@SideOnly(Side.CLIENT)
+	public ModelBase GetModel()
+	{
+		return null;
 	}
 }

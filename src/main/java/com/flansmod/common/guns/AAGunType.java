@@ -3,8 +3,11 @@ package com.flansmod.common.guns;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.minecraft.client.model.ModelBase;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.flansmod.client.model.ModelAAGun;
 import com.flansmod.common.FlansMod;
@@ -54,31 +57,29 @@ public class AAGunType extends InfoType
 			if (FMLCommonHandler.instance().getSide().isClient() && split[0].equals("Model"))
 			{
 				model = FlansMod.proxy.loadModel(split[1], shortName, ModelAAGun.class);
-			}
-			if (split[0].equals("Texture"))
-			{
-				texture = split[1];
-			}
-			if (split[0].equals("Damage"))
-			{
-				damage = Integer.parseInt(split[1]);
-			}
-			if (split[0].equals("ReloadTime"))
-			{
-				reloadTime = Integer.parseInt(split[1]);
-			}
-			if (split[0].equals("Recoil"))
-			{
-				recoil = Integer.parseInt(split[1]);
-			}
-			if (split[0].equals("Accuracy"))
-			{
-				accuracy = Integer.parseInt(split[1]);
-			}
-			if (split[0].equals("ShootDelay"))
-			{
-				shootDelay = Integer.parseInt(split[1]);
-			}
+			} 
+
+			damage = Read(split, "Damage", damage);
+			reloadTime = Read(split, "ReloadTime", reloadTime);
+			recoil = Read(split, "Recoil", recoil);
+			accuracy = Read(split, "Accuracy", accuracy);
+			shootDelay = Read(split, "ShootDelay", shootDelay);
+			fireAlternately = Read(split, "FireAlternately", fireAlternately);
+			health = Read(split, "Health", health);
+			topViewLimit = Read(split, "TopViewLimit", topViewLimit);
+			bottomViewLimit = Read(split, "BottomViewLimit", bottomViewLimit);
+			targetMobs = Read(split, "TargetMobs", targetMobs);
+			targetPlayers = Read(split, "TargetPlayers", targetPlayers);
+			targetVehicles = Read(split, "TargetVehicles", targetVehicles);
+			targetPlanes = Read(split, "TargetPlanes", targetPlanes);
+			targetMechas = Read(split, "TargetMechas", targetMechas);
+			shareAmmo = Read(split, "ShareAmmo", shareAmmo);
+			targetRange = Read(split, "TargetRange", targetRange);
+			bottomViewLimit = Read(split, "BottomViewLimit", bottomViewLimit);
+			
+			if(split[0].equals("TargetDriveables"))
+				targetMechas = targetPlanes = targetVehicles = Boolean.parseBoolean(split[1]);
+
 			if (split[0].equals("ShootSound"))
 			{
 				shootSound = split[1];
@@ -88,10 +89,6 @@ public class AAGunType extends InfoType
 			{
 				reloadSound = split[1];
 				FlansMod.proxy.loadSound(contentPack, "aaguns", split[1]);
-			}
-			if (split[0].equals("FireAlternately"))
-			{
-				fireAlternately = split[1].equals("True");
 			}
 			if (split[0].equals("NumBarrels"))
 			{
@@ -111,14 +108,6 @@ public class AAGunType extends InfoType
 			{
 				health = Integer.parseInt(split[1]);
 			}
-			if (split[0].equals("TopViewLimit"))
-			{
-				topViewLimit = Float.parseFloat(split[1]);
-			}
-			if (split[0].equals("BottomViewLimit"))
-			{
-				bottomViewLimit = Float.parseFloat(split[1]);
-			}
 			if (split[0].equals("Ammo"))
 			{
 				BulletType type = BulletType.getBullet(split[1]);
@@ -133,25 +122,8 @@ public class AAGunType extends InfoType
 				gunnerY = Integer.parseInt(split[2]);
 				gunnerZ = Integer.parseInt(split[3]);
 			}
-			if(split[0].equals("TargetMobs"))
-				targetMobs = Boolean.parseBoolean(split[1]);
-			if(split[0].equals("TargetPlayers"))
-				targetPlayers = Boolean.parseBoolean(split[1]);
-			if(split[0].equals("TargetVehicles"))
-				targetVehicles = Boolean.parseBoolean(split[1]);
-			if(split[0].equals("TargetPlanes"))
-				targetPlanes = Boolean.parseBoolean(split[1]);
-			if(split[0].equals("TargetMechas"))
-				targetMechas = Boolean.parseBoolean(split[1]);
-			if(split[0].equals("TargetDriveables"))
-				targetMechas = targetPlanes = targetVehicles = Boolean.parseBoolean(split[1]);
-			if(split[0].equals("ShareAmmo"))
-				shareAmmo = Boolean.parseBoolean(split[1]);
-			if (split[0].equals("TargetRange"))
-			{
-				targetRange = Float.parseFloat(split[1]);
-			}
-		} catch (Exception e)
+		} 
+		catch (Exception e)
 		{
 			FlansMod.log("" + e);
 		}
@@ -188,5 +160,22 @@ public class AAGunType extends InfoType
 	public void addDungeonLoot() 
 	{
 		//Do not add AA guns to dungeon chests. That would be so op.
+	}
+
+	@Override
+	protected void preRead(TypeFile file)
+	{
+	}
+
+	@Override
+	protected void postRead(TypeFile file)
+	{
+	}
+
+	@Override
+	@SideOnly(Side.CLIENT)
+	public ModelBase GetModel()
+	{
+		return model;
 	}
 }

@@ -6,6 +6,7 @@ import com.flansmod.apocalypse.common.FlansModApocalypse;
 import com.flansmod.apocalypse.common.entity.EntityAIMecha;
 import com.flansmod.common.BlockItemHolder;
 import com.flansmod.common.FlansMod;
+import com.flansmod.common.ModuloHelper;
 import com.flansmod.common.TileEntityItemHolder;
 import com.flansmod.common.driveables.DriveableData;
 import com.flansmod.common.driveables.DriveableType;
@@ -280,7 +281,7 @@ public class WorldGenResearchLab extends WorldGenFlan
     	for(int k = 0; k < 2; k++)
     	{
     		ItemStack randomGun = FlansModApocalypse.getLootGenerator().getRandomLoadedGun(rand, false);
-    		GunType gunType = ((ItemGun)randomGun.getItem()).type;
+    		GunType gunType = ((ItemGun)randomGun.getItem()).GetType();
     		tags.setTag(k == 1 ? EnumMechaSlotType.rightTool.toString() : EnumMechaSlotType.leftTool.toString(), randomGun.writeToNBT(new NBTTagCompound()));
     		if(gunType.nonExplosiveAmmo.size() > 0)
     		{

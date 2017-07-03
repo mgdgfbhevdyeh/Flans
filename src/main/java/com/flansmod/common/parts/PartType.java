@@ -5,14 +5,17 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
+import net.minecraft.client.model.ModelBase;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.flansmod.common.types.EnumType;
 import com.flansmod.common.types.InfoType;
 import com.flansmod.common.types.TypeFile;
 
 public class PartType extends InfoType {
-	/** Category (TODO : Replace with Enum) */
+	/** Category */
 	public EnumPartCategory category;
 	/** Max stack size of item */
 	public int stackSize;
@@ -170,5 +173,17 @@ public class PartType extends InfoType {
 		if (s.equals("Misc"))
 			return EnumPartCategory.MISC;
 		return EnumPartCategory.MISC;
+	}
+
+	@Override
+	protected void preRead(TypeFile file)
+	{
+	}
+
+	@Override
+	@SideOnly(Side.CLIENT)
+	public ModelBase GetModel()
+	{
+		return null;
 	}
 }

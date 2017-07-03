@@ -104,11 +104,11 @@ public abstract class Gametype
 
 	public void playerChoseTeam(EntityPlayerMP player, Team team, Team newTeam) {}
 		
-	public void playerChoseNewClass(EntityPlayerMP player, PlayerClass playerClass) {}
+	public void playerChoseNewClass(EntityPlayerMP player, IPlayerClass playerClass) {}
 	
 	public void playerDefected(EntityPlayerMP player, Team team, Team newTeam) {}
 	
-	public void playerEnteredTheGame(EntityPlayerMP player, Team team, PlayerClass playerClass) {}
+	public void playerEnteredTheGame(EntityPlayerMP player, Team team, IPlayerClass playerClass) {}
 	
 	//--------------------------------------
 	// Helper methods - Do not override
@@ -134,7 +134,7 @@ public abstract class Gametype
 		return MinecraftServer.getServer().getAllUsernames();
 	}
 	
-	public static List<EntityPlayer> getPlayers()
+	public static List<EntityPlayerMP> getPlayers()
 	{
 		return MinecraftServer.getServer().getConfigurationManager().playerEntityList;
 	}

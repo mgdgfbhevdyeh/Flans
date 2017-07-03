@@ -72,7 +72,7 @@ public class EntityMecha extends EntityDriveable
 	public MechaInventory inventory;
 	public float legSwing = 0;
 	/** Used for shooting guns */
-	public int shootDelayLeft = 0, shootDelayRight = 0;
+	public float shootDelayLeft = 0, shootDelayRight = 0;
 	/** Used for gun sounds */
 	public int soundDelayLeft = 0, soundDelayRight = 0;
 	/** The coords of the blocks being destroyed */
@@ -330,7 +330,8 @@ public class EntityMecha extends EntityDriveable
 		
 				Vector3f lookVector = axes.findLocalVectorGlobally(seats[0].looking.findLocalVectorGlobally(new Vector3f(reach, 0F, 0F)));
 				
-				worldObj.spawnEntityInWorld(new EntityDebugVector(worldObj, lookOrigin, lookVector, 20));
+				if(FlansMod.DEBUG && worldObj.isRemote)
+					worldObj.spawnEntityInWorld(new EntityDebugVector(worldObj, lookOrigin, lookVector, 20));
 				
 				Vector3f lookTarget = Vector3f.add(lookVector, lookOrigin, null);
 				
@@ -349,10 +350,10 @@ public class EntityMecha extends EntityDriveable
 			else if(heldItem instanceof ItemGun)
 			{
 				ItemGun gunItem = (ItemGun)heldItem;
-				GunType gunType = gunItem.type;
+				GunType gunType = gunItem.GetType();
 				
 				//Get the correct shoot delay
-				int delay = left ? shootDelayLeft : shootDelayRight;
+				float delay = left ? shootDelayLeft : shootDelayRight;
 				
 				//If we can shoot
 				if(delay <= 0)
@@ -373,7 +374,7 @@ public class EntityMecha extends EntityDriveable
 					//If no bullet stack was found, reload
 					if(bulletStack == null)
 					{
-						gunItem.reload(heldStack, gunType, worldObj, this, driveableData, (infiniteAmmo() || creative()), false);
+						 gunItem.Reload(heldStack, worldObj, this, driveableData, left, true, true, (infiniteAmmo() || creative()));
 					}
 					//A bullet stack was found, so try shooting with it
 					else if(bulletStack.getItem() instanceof ItemBullet)
@@ -431,11 +432,25 @@ public class EntityMecha extends EntityDriveable
 				
 		if(!worldObj.isRemote)
 			for (int k = 0; k < gunType.numBullets * bulletType.numBullets; k++)
-				worldObj.spawnEntityInWorld(((ItemShootable)bulletStack.getItem()).getEntity(worldObj, bulletOrigin, armVector, (EntityLivingBase)(seats[0].riddenByEntity), gunType.getSpread(stack) / 2F, gunType.getDamage(stack), gunType.getBulletSpeed(stack),bulletStack.getItemDamage(), mechaType));
+			{
+				
+				// TODO: Do mechas properly. No hacks
+				float speed = gunType.getBulletSpeed(stack);
+				if(speed <= 0.0f)
+					speed = 5.0f;
+				worldObj.spawnEntityInWorld(((ItemShootable)bulletStack.getItem()).getEntity(worldObj, 
+						bulletOrigin, 
+						armVector, 
+						(EntityLivingBase)(seats[0].riddenByEntity), 
+						gunType.getSpread(stack) / 2F, 
+						gunType.getDamage(stack), 
+						speed,
+						mechaType));
+			}
 		
 		if(left)
-			shootDelayLeft = gunType.mode == EnumFireMode.SEMIAUTO ? Math.max(gunType.shootDelay, 5) : gunType.shootDelay;
-		else shootDelayRight = gunType.mode == EnumFireMode.SEMIAUTO ? Math.max(gunType.shootDelay, 5) : gunType.shootDelay;
+			shootDelayLeft = gunType.mode == EnumFireMode.SEMIAUTO ? Math.max(gunType.GetShootDelay(stack), 5) : gunType.GetShootDelay(stack);
+		else shootDelayRight = gunType.mode == EnumFireMode.SEMIAUTO ? Math.max(gunType.GetShootDelay(stack), 5) : gunType.GetShootDelay(stack);
 		
 		if(bulletType.dropItemOnShoot != null && !creative)
 			ItemGun.dropItem(worldObj, this, bulletType.dropItemOnShoot);
@@ -486,7 +501,7 @@ public class EntityMecha extends EntityDriveable
 
 		else if(damagesource.damageType.equals("player") && damagesource.getEntity().onGround && (seats[0] == null || seats[0].riddenByEntity == null))
 		{
-			ItemStack mechaStack = new ItemStack(type.item, 1, 0);
+			ItemStack mechaStack = new ItemStack(type.item, 1, driveableData.paintjobID);
 			NBTTagCompound tags = new NBTTagCompound();
 			mechaStack.setTagCompound(tags); 
 			driveableData.writeToNBT(tags);
@@ -663,6 +678,7 @@ public class EntityMecha extends EntityDriveable
 				float yaw = seats[0].looking.getYaw() - seats[0].prevLooking.getYaw();
 				axes.rotateGlobalYaw(yaw);
 				seats[0].looking.rotateGlobalYaw(-yaw);
+				seats[0].playerLooking.rotateGlobalYaw(-yaw);
 			}
 		}
 		
@@ -928,7 +944,7 @@ public class EntityMecha extends EntityDriveable
 										}
 										
 										//Add the itemstack to mecha inventory
-										if(!InventoryHelper.addItemStackToInventory(driveableData, stack, driverIsCreative) && !worldObj.isRemote && worldObj.getGameRules().getGameRuleBooleanValue("doTileDrops"))
+										if(!InventoryHelper.addItemStackToInventory(driveableData, stack, driverIsCreative) && !worldObj.isRemote && worldObj.getGameRules().getBoolean("doTileDrops"))
 										{
 											worldObj.spawnEntityInWorld(new EntityItem(worldObj, breakingBlock.x + 0.5F, breakingBlock.y + 0.5F, breakingBlock.z + 0.5F, stack));
 										}

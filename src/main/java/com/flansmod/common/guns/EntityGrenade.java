@@ -106,9 +106,9 @@ public class EntityGrenade extends EntityShootable implements IEntityAdditionalS
 	public void onUpdate()
 	{
 		super.onUpdate();
-		
+				
 		//Quiet despawning
-		if(type.despawnTime > 0 && ticksExisted > type.despawnTime)
+		if(type == null || (type.despawnTime > 0 && ticksExisted > type.despawnTime))
 		{
 			detonated = true;
 			setDead();
@@ -464,7 +464,7 @@ public class EntityGrenade extends EntityShootable implements IEntityAdditionalS
 	}
 	
 	@Override
-	public void func_180426_a(double x, double y, double z, float yaw, float pitch, int i, boolean b)
+	public void setPositionAndRotation2(double x, double y, double z, float yaw, float pitch, int i, boolean b)
 	{
 		
 	}
@@ -565,7 +565,7 @@ public class EntityGrenade extends EntityShootable implements IEntityAdditionalS
 			//Handle ammo
 			if(type.numClips > 0 && player.getCurrentEquippedItem() != null && player.getCurrentEquippedItem().getItem() instanceof ItemGun)
 			{
-				GunType gun = ((ItemGun)player.getCurrentEquippedItem().getItem()).type;
+				GunType gun = ((ItemGun)player.getCurrentEquippedItem().getItem()).GetType();
 				if(gun.ammo.size() > 0)
 				{
 					ShootableType bulletToGive = gun.ammo.get(0);

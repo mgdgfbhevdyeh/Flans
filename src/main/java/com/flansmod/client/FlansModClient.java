@@ -35,7 +35,6 @@ import net.minecraft.client.particle.EntityDropParticleFX;
 import net.minecraft.client.particle.EntityEnchantmentTableParticleFX;
 import net.minecraft.client.particle.EntityExplodeFX;
 import net.minecraft.client.particle.EntityFX;
-import net.minecraft.client.particle.EntityFireworkSparkFX;
 import net.minecraft.client.particle.EntityFishWakeFX;
 import net.minecraft.client.particle.EntityFlameFX;
 import net.minecraft.client.particle.EntityFootStepFX;
@@ -64,6 +63,7 @@ import net.minecraft.client.renderer.entity.RendererLivingEntity;
 import net.minecraft.client.renderer.tileentity.RenderItemFrame;
 import net.minecraft.client.resources.IReloadableResourceManager;
 import net.minecraft.client.resources.model.ModelManager;
+import net.minecraft.client.settings.GameSettings;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityItem;
@@ -72,9 +72,13 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.BlockPos;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.MathHelper;
+import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.world.EnumSkyBlock;
 import net.minecraft.world.World;
 import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.client.event.EntityViewRenderEvent.CameraSetup;
@@ -91,11 +95,16 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 import com.flansmod.api.IControllable;
 import com.flansmod.client.gui.GuiDriveableController;
-import com.flansmod.client.gui.GuiTeamScores;
+import com.flansmod.client.gui.teams.GuiMissionResults;
+import com.flansmod.client.gui.teams.GuiTeamScores;
 import com.flansmod.client.model.GunAnimations;
+import com.flansmod.client.teams.ClientTeamsData;
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.PlayerData;
 import com.flansmod.common.PlayerHandler;
+import com.flansmod.common.driveables.mechas.EntityMecha;
+import com.flansmod.common.guns.AttachmentType;
+import com.flansmod.common.guns.EntityBullet;
 import com.flansmod.common.guns.GunType;
 import com.flansmod.common.guns.IScope;
 import com.flansmod.common.guns.ItemGun;
@@ -107,6 +116,7 @@ import com.flansmod.common.teams.Team;
 import com.flansmod.common.types.EnumType;
 import com.flansmod.common.types.InfoType;
 import com.flansmod.common.types.TypeFile;
+import com.flansmod.common.vector.Vector3i;
 import com.mojang.authlib.minecraft.MinecraftProfileTexture.Type;
 
 public class FlansModClient extends FlansMod
@@ -118,10 +128,7 @@ public class FlansModClient extends FlansMod
 	public static boolean controlModeMouse = true;
 	/** A delayer on the mouse control switch */
 	public static int controlModeSwitchTimer = 20;
-	
-	/** The delay between shots / reloading */
-	public static int shootTimeLeft, shootTimeRight;
-	
+		
 	//Recoil variables
 	/** The recoil applied to the player view by shooting */
 	public static float playerRecoil;
@@ -155,25 +162,19 @@ public class FlansModClient extends FlansMod
 	
 	/** Packet containing teams mod information from the server */
 	public static PacketTeamInfo teamInfo;
-	/** When a round ends, the teams score GUI is locked for this length of time */
-	public static int teamsScoreGUILock = 0;	
 	
-	private static ClientRenderHooks renderHooks;
+	public static int hitMarkerTime = 0;
+		
+	public static ArrayList<Vector3i> blockLightOverrides = new ArrayList<Vector3i>();
+	public static int lightOverrideRefreshRate = 5;
 	
 	public void load()
 	{		
 		log("Loading Flan's mod client side.");
-		MinecraftForge.EVENT_BUS.register(renderHooks = new ClientRenderHooks());
-		MinecraftForge.EVENT_BUS.register(this);
-		Minecraft mc = Minecraft.getMinecraft();
+
 	}
 	
 	//private static final ResourceLocation zombieSkin = new ResourceLocation("flansmod", "skins/zombie.png");
-
-	public static int shootTime(boolean left)
-	{
-		return left ? shootTimeLeft : shootTimeRight;
-	}
 
 	public static void tick()
 	{
@@ -183,28 +184,18 @@ public class FlansModClient extends FlansMod
 		if(minecraft.thePlayer.ridingEntity instanceof IControllable && minecraft.currentScreen == null)
 			minecraft.displayGuiScreen(new GuiDriveableController((IControllable)minecraft.thePlayer.ridingEntity));
 		
-		renderHooks.update();
-		
 		if(teamInfo != null && teamInfo.timeLeft > 0)
 			teamInfo.timeLeft--;
 		
-		//Teams GUI lock at end of rounds
-		if(teamsScoreGUILock > 0)
-		{
-			teamsScoreGUILock--;
-			if(minecraft.currentScreen == null)
-				minecraft.displayGuiScreen(new GuiTeamScores());
-		}
+		ClientTeamsData.Tick();
 		
 		// Guns
-		if (shootTimeLeft > 0)
-			shootTimeLeft--;
-		if (shootTimeRight > 0)
-			shootTimeRight--;
 		if(scopeTime > 0)
 			scopeTime--;
 		if (playerRecoil > 0)
 			playerRecoil *= 0.8F;
+		if(hitMarkerTime > 0)
+			hitMarkerTime--;
 		minecraft.thePlayer.rotationPitch -= playerRecoil;
 		antiRecoil += playerRecoil;
 
@@ -241,14 +232,23 @@ public class FlansModClient extends FlansMod
 		ItemStack itemstackInHand = minecraft.thePlayer.inventory.getCurrentItem();
 		if (itemstackInHand != null)
 			itemInHand = itemstackInHand.getItem();
-		if (currentScope != null && (itemInHand == null || !(itemInHand instanceof ItemGun && ((ItemGun)itemInHand).type.getCurrentScope(itemstackInHand) == currentScope)))
+		if (currentScope != null)
 		{
-			currentScope = null;
-			minecraft.gameSettings.fovSetting = originalFOV;
-			minecraft.gameSettings.mouseSensitivity = originalMouseSensitivity;
-			minecraft.gameSettings.thirdPersonView = originalThirdPerson;
+			GameSettings gameSettings = FMLClientHandler.instance().getClient().gameSettings;
+			
+			// If we've opened a GUI page, or we switched weapons, close the current scope
+			if(FMLClientHandler.instance().getClient().currentScreen != null 
+			|| itemInHand == null 
+			|| !(itemInHand instanceof ItemGun)
+			|| ((ItemGun)itemInHand).GetType().getCurrentScope(itemstackInHand) != currentScope)
+			{
+				currentScope = null;
+				minecraft.gameSettings.fovSetting = originalFOV;
+				minecraft.gameSettings.mouseSensitivity = originalMouseSensitivity;
+				minecraft.gameSettings.thirdPersonView = originalThirdPerson;
+			}
 		}
-		
+
 		//Calculate new zoom variables
 		lastZoomProgress = zoomProgress;
 		if(currentScope == null)
@@ -288,9 +288,37 @@ public class FlansModClient extends FlansMod
 			controlModeSwitchTimer--;
 	}
 	
-	public static void renderTick(float smoothing)
+	public static void SetScope(IScope scope)
 	{
-		//If the zoom has changed sufficiently, update it via reflection
+		GameSettings gameSettings = FMLClientHandler.instance().getClient().gameSettings;
+		
+		if(scopeTime <= 0 && FMLClientHandler.instance().getClient().currentScreen == null)
+		{
+			if(currentScope == null)
+			{
+				currentScope = scope;
+				lastZoomLevel = scope.getZoomFactor();
+				lastFOVZoomLevel = scope.getFOVFactor();
+				float f = originalMouseSensitivity = gameSettings.mouseSensitivity;
+				gameSettings.mouseSensitivity = f / (float) Math.sqrt(scope.getZoomFactor());
+				originalThirdPerson = gameSettings.thirdPersonView;
+				gameSettings.thirdPersonView = 0;
+				originalFOV = gameSettings.fovSetting;
+			}
+			else
+			{
+				currentScope = null;
+				gameSettings.mouseSensitivity = originalMouseSensitivity;
+				gameSettings.thirdPersonView = originalThirdPerson;
+				gameSettings.fovSetting = originalFOV;
+			}
+			scopeTime = 10;
+		}
+	}
+	
+	public static void UpdateCameraZoom(float smoothing)
+	{
+		//If the zoom has changed sufficiently, update it
 		if(Math.abs(zoomProgress - lastZoomProgress) > 0.0001F)
 		{
 			float actualZoomProgress = lastZoomProgress + (zoomProgress - lastZoomProgress) * smoothing;
@@ -302,19 +330,6 @@ public class FlansModClient extends FlansMod
 			
 			float zoomToApply = Math.max(FOVZoomLevel, (float)zoomLevel);
 			minecraft.gameSettings.fovSetting = (((originalFOV * 40 + 70) / zoomToApply) - 70) / 40;
-		}
-	}
-	
-	@SubscribeEvent
-	public void chatMessage(ClientChatReceivedEvent event)
-	{
-		if(event.message.getUnformattedText().equals("#flansmod"))
-		{
-			//String[] split = event.message.getUnformattedText().split("\\.");
-			//split[split.length - 1] = split[split.length - 1].split("\"}")[0];
-			event.setCanceled(true);
-			//TickHandlerClient.addKillMessage(split);
-			//FMLClientHandler.instance().getClient().thePlayer.sendChatToPlayer(split[3] + " killed " + split[2] + " with a " + InfoType.getType(split[1]).name);
 		}
 	}
 		
@@ -348,7 +363,7 @@ public class FlansModClient extends FlansMod
 	
 	public static void reloadModels(boolean reloadSkins)
 	{
-		for(InfoType type : InfoType.infoTypes)
+		for(InfoType type : InfoType.infoTypes.values())
 		{
 			type.reloadModel();
 		}
@@ -368,49 +383,6 @@ public class FlansModClient extends FlansMod
 
 	public static boolean isCurrentMap(String map) {
 		return !(teamInfo == null || teamInfo.mapShortName == null) && teamInfo.mapShortName.equals(map);
-	}
-	
-	public static EnumParticleTypes getParticleType(String s)
-	{
-		if(s.equals("hugeexplosion")) 		return EnumParticleTypes.EXPLOSION_HUGE;
-		else if(s.equals("largeexplode"))	return EnumParticleTypes.EXPLOSION_LARGE;
-		else if(s.equals("explode"))		return EnumParticleTypes.EXPLOSION_NORMAL;
-		else if(s.equals("fireworksSpark"))	return EnumParticleTypes.FIREWORKS_SPARK;
-		else if(s.equals("bubble"))			return EnumParticleTypes.WATER_BUBBLE;
-		else if(s.equals("splash"))			return EnumParticleTypes.WATER_SPLASH;
-		else if(s.equals("wake"))			return EnumParticleTypes.WATER_WAKE;
-		else if(s.equals("drop"))			return EnumParticleTypes.WATER_DROP;
-		else if(s.equals("suspended"))		return EnumParticleTypes.SUSPENDED;
-		else if(s.equals("depthsuspend"))	return EnumParticleTypes.SUSPENDED_DEPTH;
-		else if(s.equals("townaura"))		return EnumParticleTypes.TOWN_AURA;
-		else if(s.equals("crit"))			return EnumParticleTypes.CRIT;
-		else if(s.equals("magicCrit"))		return EnumParticleTypes.CRIT_MAGIC;
-		else if(s.equals("smoke"))			return EnumParticleTypes.SMOKE_NORMAL;
-		else if(s.equals("largesmoke"))		return EnumParticleTypes.SMOKE_LARGE;
-		else if(s.equals("spell"))			return EnumParticleTypes.SPELL;
-		else if(s.equals("instantSpell"))	return EnumParticleTypes.SPELL_INSTANT;
-		else if(s.equals("mobSpell"))		return EnumParticleTypes.SPELL_MOB;
-		else if(s.equals("mobSpellAmbient"))return EnumParticleTypes.SPELL_MOB_AMBIENT;
-		else if(s.equals("witchMagic"))		return EnumParticleTypes.SPELL_WITCH;
-		else if(s.equals("dripWater"))		return EnumParticleTypes.DRIP_WATER;
-		else if(s.equals("dripLava"))		return EnumParticleTypes.DRIP_LAVA;
-		else if(s.equals("angryVillager"))	return EnumParticleTypes.VILLAGER_ANGRY;
-		else if(s.equals("happyVillager"))	return EnumParticleTypes.VILLAGER_HAPPY;
-		else if(s.equals("note"))			return EnumParticleTypes.NOTE;
-		else if(s.equals("portal"))			return EnumParticleTypes.PORTAL;
-		else if(s.equals("enchantmenttable"))return EnumParticleTypes.ENCHANTMENT_TABLE;
-		else if(s.equals("flame"))			return EnumParticleTypes.FLAME;
-		else if(s.equals("lava"))			return EnumParticleTypes.LAVA;
-		else if(s.equals("footstep"))		return EnumParticleTypes.FOOTSTEP;
-		else if(s.equals("cloud"))			return EnumParticleTypes.CLOUD;
-		else if(s.equals("reddust"))		return EnumParticleTypes.REDSTONE;
-		else if(s.equals("snowballpoof"))	return EnumParticleTypes.SNOWBALL;
-		else if(s.equals("snowshovel"))		return EnumParticleTypes.SNOW_SHOVEL;
-		else if(s.equals("slime"))			return EnumParticleTypes.SLIME;
-		else if(s.equals("heart"))			return EnumParticleTypes.HEART;
-		else if(s.equals("barrier"))		return EnumParticleTypes.BARRIER;
-		
-		return EnumParticleTypes.WATER_BUBBLE;
 	}
 	
 	@SideOnly(Side.CLIENT)
@@ -519,5 +491,129 @@ public class FlansModClient extends FlansMod
 			}
 		}
 		return animations;
+	}
+	
+	public static void AddHitMarker()
+	{
+		hitMarkerTime = 20;
+	}
+	
+	/** Handle flashlight block light override */	
+	public static void UpdateFlashlights(Minecraft mc)
+	{
+		//Handle lighting from flashlights and glowing bullets
+		if(FlansMod.ticker % lightOverrideRefreshRate == 0 && mc.theWorld != null)
+		{
+			//Check graphics setting and adjust refresh rate
+			lightOverrideRefreshRate = mc.gameSettings.fancyGraphics ? 10 : 20;
+			
+			//Reset old light values
+			for(Vector3i v : blockLightOverrides)
+			{
+				mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(v.x, v.y, v.z));
+			}
+			//Clear the list
+			blockLightOverrides.clear();
+			
+			//Find all flashlights
+			for(Object obj : mc.theWorld.playerEntities)
+			{
+				EntityPlayer player = (EntityPlayer)obj;
+				ItemStack currentHeldItem = player.getCurrentEquippedItem();
+				if(currentHeldItem != null && currentHeldItem.getItem() instanceof ItemGun)
+				{
+					GunType type = ((ItemGun)currentHeldItem.getItem()).GetType();
+					AttachmentType grip = type.getGrip(currentHeldItem);
+					if(grip != null && grip.flashlight)
+					{
+						for(int i = 0; i < 2; i++)
+						{
+							MovingObjectPosition ray = player.rayTrace(grip.flashlightRange / 2F * (i + 1), 1F);
+							if(ray != null)
+							{
+								int x = ray.getBlockPos().getX();
+								int y = ray.getBlockPos().getY();
+								int z = ray.getBlockPos().getZ();
+								EnumFacing side = ray.sideHit;
+								switch(side)
+								{
+								case DOWN : y--; break;
+								case UP : y++; break;
+								case NORTH : z--; break;
+								case SOUTH : z++; break;
+								case WEST : x--; break;
+								case EAST : x++; break;
+								}
+								blockLightOverrides.add(new Vector3i(x, y, z));
+								mc.theWorld.setLightFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z), 12);
+								mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y + 1, z));
+								mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y - 1, z));
+								mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x + 1, y, z));
+								mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x - 1, y, z));
+								mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z + 1));
+								mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z - 1));
+							}
+						}
+					}
+				}
+			}
+			
+			for(Object obj : mc.theWorld.loadedEntityList)
+			{
+				if(obj instanceof EntityBullet)
+				{
+					EntityBullet bullet = (EntityBullet)obj;
+					if(!bullet.isDead && bullet.type.hasLight)
+					{
+						int x = MathHelper.floor_double(bullet.posX);
+						int y = MathHelper.floor_double(bullet.posY);
+						int z = MathHelper.floor_double(bullet.posZ);
+						blockLightOverrides.add(new Vector3i(x, y, z));
+						mc.theWorld.setLightFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z), 15);
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y + 1, z));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y - 1, z));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x + 1, y, z));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x - 1, y, z));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z + 1));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z - 1));
+					}
+				}
+				else if(obj instanceof EntityMecha)
+				{
+					EntityMecha mecha = (EntityMecha)obj;
+					int x = MathHelper.floor_double(mecha.posX);
+					int y = MathHelper.floor_double(mecha.posY);
+					int z = MathHelper.floor_double(mecha.posZ);
+					if(mecha.lightLevel() > 0)
+					{
+						blockLightOverrides.add(new Vector3i(x, y, z));
+						mc.theWorld.setLightFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z), Math.max(mc.theWorld.getLightFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z)), mecha.lightLevel()));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y + 1, z));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y - 1, z));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x + 1, y, z));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x - 1, y, z));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z + 1));
+						mc.theWorld.getLightFromNeighborsFor(EnumSkyBlock.BLOCK, new BlockPos(x, y, z - 1));
+					}
+					if(mecha.forceDark())
+					{
+						for(int i = -3; i <= 3; i++)
+						{
+							for(int j = -3; j <= 3; j++)
+							{
+								for(int k = -3; k <= 3; k++)
+								{
+									int xd = i + x;
+									int yd = j + y;
+									int zd = k + z;
+									blockLightOverrides.add(new Vector3i(xd, yd, zd));
+									mc.theWorld.setLightFor(EnumSkyBlock.SKY, new BlockPos(xd, yd, zd), Math.abs(i) + Math.abs(j) + Math.abs(k));
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }

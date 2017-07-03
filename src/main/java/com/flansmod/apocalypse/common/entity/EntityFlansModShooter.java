@@ -53,7 +53,7 @@ public class EntityFlansModShooter extends EntityMob implements IRangedAttackMob
 {
 	private EntityAIArrowAttack aiArrowAttack = new EntityAIArrowAttack(this, 1.0D, 20, 1, 70.0F);
 	public ItemStack[] ammoStacks;
-	public int shootDelay = 0;
+	public float shootDelay = 0;
 	public float minigunSpeed = 0.0F;
 	public int loopedSoundDelay = 0;
 	public boolean reloading = false;
@@ -97,13 +97,13 @@ public class EntityFlansModShooter extends EntityMob implements IRangedAttackMob
     }
 	
 	@Override
-	public IEntityLivingData func_180482_a(DifficultyInstance difficulty, IEntityLivingData data)
+	public IEntityLivingData onInitialSpawn(DifficultyInstance difficulty, IEntityLivingData data)
     {
-        data = super.func_180482_a(difficulty, data);
+        data = super.onInitialSpawn(difficulty, data);
 
         this.tasks.addTask(4, this.aiArrowAttack);
-        this.func_180481_a(difficulty);
-        this.func_180483_b(difficulty);
+        this.setEquipmentBasedOnDifficulty(difficulty);
+        this.setEnchantmentBasedOnDifficulty(difficulty);
 
         this.setCanPickUpLoot(this.rand.nextFloat() < 0.55F * difficulty.getClampedAdditionalDifficulty());
 
@@ -117,7 +117,7 @@ public class EntityFlansModShooter extends EntityMob implements IRangedAttackMob
 		if(stack != null && stack.getItem() instanceof ItemGun)
 		{
 			ItemGun item = (ItemGun)stack.getItem();
-			GunType type = item.type;
+			GunType type = item.GetType();
 			boolean shouldShoot = false;
 			switch(type.mode)
 			{
@@ -187,7 +187,7 @@ public class EntityFlansModShooter extends EntityMob implements IRangedAttackMob
 				switch(type.mode)
 				{
 				case FULLAUTO: case MINIGUN :
-					shootDelay = type.shootDelay; 
+					shootDelay = type.GetShootDelay(stack); 
 					break;
 				case SEMIAUTO:
 					shootDelay = 2 * type.shootDelay;
@@ -292,7 +292,17 @@ public class EntityFlansModShooter extends EntityMob implements IRangedAttackMob
 				Vector3f origin = new Vector3f(posX, posY + getEyeHeight(), posZ);
 				Vector3f direction = new Vector3f(target.posX - posX, (target.posY + target.getEyeHeight()) - (posY + getEyeHeight()), target.posZ - posZ).normalise(null);
 				Vector3f.add(direction, new Vector3f(rand.nextFloat() * direction.x * inaccuracy, rand.nextFloat() * direction.y * inaccuracy, rand.nextFloat() * direction.z * inaccuracy), direction);
-				world.spawnEntityInWorld(((ItemShootable)bulletStack.getItem()).getEntity(world, origin, direction, this, gunType.getSpread(stack), gunType.getDamage(stack), gunType.getBulletSpeed(stack), bulletStack.getItemDamage(), gunType));
+				ItemShootable shootableItem = (ItemShootable)bulletStack.getItem();
+				//checking if bullet speed is 0. If it is, change to 10
+				float speed = gunType.getBulletSpeed(stack) > 0? gunType.getBulletSpeed(stack) : 10.0f;
+				shootableItem.Shoot(worldObj,
+						origin,
+						direction,
+						gunType.getDamage(stack),
+						gunType.getSpread(stack),
+						speed,
+						gunType,
+						this);
 			}
 			// Drop item on shooting if bullet requires it
 			if(bullet.dropItemOnShoot != null)
@@ -301,7 +311,7 @@ public class EntityFlansModShooter extends EntityMob implements IRangedAttackMob
 			if(gunType.dropItemOnShoot != null)
 				item.dropItem(world, this, gunType.dropItemOnShoot);
 		}
-		shootDelay = gunType.shootDelay;
+		shootDelay = gunType.GetShootDelay(stack);
 	}
 	
 	@Override
